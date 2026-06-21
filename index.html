@@ -723,12 +723,22 @@ function renderHeatmap(){
   const TW = narrow ? 50 : 80, SW = narrow ? 44 : 80;
   const fixedCols = TW + SW;
   const availW = document.getElementById('heatmap-card').clientWidth || 900;
-  // 셀 너비: 14일 이하는 화면에 꽉 차게, 14일 초과는 14일 기준 고정 후 스크롤
-  const minCellW = narrow ? 30 : 1;
-  const cellW14 = Math.max(minCellW, Math.floor((availW - fixedCols) / 14));
-  const cellW = dates.length <= 14
-    ? Math.max(minCellW, Math.floor((availW - fixedCols) / dates.length))
-    : cellW14;
+  // 셀 너비 계산
+  // - 모바일(narrow): 화면 폭과 무관하게 "한 화면에 3일치"만 보이도록 셀을 크게 고정,
+  //   나머지 날짜는 가로 스크롤로 이동(아래 #heatmap-card의 overflow-x:auto가 처리)
+  // - 데스크톱: 기존처럼 14일 이하면 화면에 꽉 차게, 14일 초과는 14일 기준 고정 후 스크롤
+  let cellW;
+  if (narrow) {
+    const MOBILE_VISIBLE_DAYS = 3;
+    const visibleCols = Math.max(1, Math.min(dates.length, MOBILE_VISIBLE_DAYS));
+    cellW = Math.max(30, Math.floor((availW - fixedCols) / visibleCols));
+  } else {
+    const minCellW = 1;
+    const cellW14 = Math.max(minCellW, Math.floor((availW - fixedCols) / 14));
+    cellW = dates.length <= 14
+      ? Math.max(minCellW, Math.floor((availW - fixedCols) / dates.length))
+      : cellW14;
+  }
   const tableW = Math.max(availW - 2, fixedCols + cellW * dates.length);
 
   const thStyle = (w) => `style="width:${w}px;min-width:${w}px;max-width:${w}px;"`;
