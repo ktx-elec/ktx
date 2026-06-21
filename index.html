@@ -502,7 +502,9 @@ const INITIAL={
 
 const GH_DATA_PATH = 'data.json'; // 저장소 루트의 데이터 파일
 let DB;
-let ghConfig = { owner:'', repo:'', branch:'main', token:'' }; // 세션 동안만 메모리에 유지(저장 안 함)
+// owner/repo/branch는 고정값으로 코드에 내장 — 모든 방문자가 설정 없이 항상 동일한 저장소의 data.json을 자동으로 읽어옵니다.
+// token은 절대 코드에 넣지 않습니다(공개 노출 위험) — 관리자가 게시할 때만 입력.
+let ghConfig = { owner:'ktx-elec', repo:'ktx', branch:'main', token:'' };
 let ghFileSha = null; // data.json 현재 커밋의 sha (업데이트 시 필요)
 
 function ghHeaders(){
