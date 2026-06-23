@@ -340,9 +340,9 @@ body{background:var(--bg);color:var(--txt);font-family:'Malgun Gothic','Segoe UI
       <button class="period-btn active" id="pb14" onclick="setPeriod(14)">14일</button>
       <button class="period-btn" id="pb30" onclick="setPeriod(30)">30일</button>
     </div>
-    <input type="date" id="sDate" class="hdr-input" onchange="clearPeriodActive();render()">
+    <input type="date" id="sDate" class="hdr-input" onchange="clearPeriodActive();render();requestAnimationFrame(()=>{const c=document.getElementById('heatmap-card');c.scrollLeft=c.scrollWidth;});">
     <span style="color:var(--txt3)">~</span>
-    <input type="date" id="eDate" class="hdr-input" onchange="clearPeriodActive();render()">
+    <input type="date" id="eDate" class="hdr-input" onchange="clearPeriodActive();render();requestAnimationFrame(()=>{const c=document.getElementById('heatmap-card');c.scrollLeft=c.scrollWidth;});">
   </div>
   <div class="sep"></div>
   <div class="legend-bar" id="legendBar"></div>
@@ -502,6 +502,7 @@ const INITIAL={
 
 const GH_DATA_PATH = 'data.json'; // 저장소 루트의 데이터 파일
 let DB;
+let heatmapScrollInitialized = false; // 최초 1회만 최신일로 자동 스크롤, 이후 재렌더링 시엔 사용자 스크롤 위치 유지
 // owner/repo/branch는 고정값으로 코드에 내장 — 모든 방문자가 설정 없이 항상 동일한 저장소의 data.json을 자동으로 읽어옵니다.
 // token은 절대 코드에 넣지 않습니다(공개 노출 위험) — 관리자가 게시할 때만 입력.
 let ghConfig = { owner:'ktx-elec', repo:'ktx', branch:'main', token:'' };
@@ -602,6 +603,13 @@ let expandedTrains=new Set();
 let allExpanded=false;
 
 function uid(){return 'e'+Date.now()+Math.random().toString(36).slice(2,6);}
+// 엑셀(SheetJS)에서 cellDates:true로 읽은 Date 객체를 'YYYY-MM-DD'로 변환.
+// Date#toISOString()은 로컬 타임존을 UTC로 변환하면서 날짜가 하루 밀리는 문제가 있어
+// SheetJS가 채워주는 UTC 게터(getUTCFullYear 등)를 직접 사용해 타임존 영향을 없앤다.
+function excelDateToStr(d){
+  const y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,'0'), day=String(d.getUTCDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 function todayStr(){return new Date().toISOString().split('T')[0];}
 function daysAgoStr(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().split('T')[0];}
 function fmtDate(d){const dt=new Date(d+'T00:00:00');const w=['일','월','화','수','목','금','토'][dt.getDay()];return `${String(dt.getFullYear()).slice(2)}.${String(dt.getMonth()+1).padStart(2,'0')}.${String(dt.getDate()).padStart(2,'0')} (${w})`;}
@@ -783,11 +791,15 @@ function renderHeatmap(){
   });
   document.querySelector('#heatmap-table tbody').innerHTML = bh;
 
-  // 항상 스크롤 맨 우측(최신일)으로
-  requestAnimationFrame(() => {
-    const card = document.getElementById('heatmap-card');
-    card.scrollLeft = card.scrollWidth;
-  });
+  // 최초 렌더링(아직 스크롤 위치가 잡히지 않은 경우)에만 최신일 쪽으로 정렬.
+  // 셀 클릭/아코디언 토글 등으로 다시 그릴 때는 사용자가 보던 스크롤 위치를 그대로 유지.
+  if (!heatmapScrollInitialized) {
+    heatmapScrollInitialized = true;
+    requestAnimationFrame(() => {
+      const card = document.getElementById('heatmap-card');
+      card.scrollLeft = card.scrollWidth;
+    });
+  }
 }
 
 function buildTimelineRows(train, dates, cellW, TW, SW){
@@ -1125,7 +1137,7 @@ function handleCSVFile(f){
           if(!trainVal || !checkVal) return; // 둘 다 입력된 행만 사용
           let rawDate = row[idxDate];
           let dateStr = "";
-          if(rawDate instanceof Date) dateStr = rawDate.toISOString().split('T')[0];
+          if(rawDate instanceof Date) dateStr = excelDateToStr(rawDate);
           else if(typeof rawDate === 'string') dateStr = rawDate.split(' ')[0];
           else dateStr = String(rawDate || "").trim();
           if(!dateStr) return;
@@ -1153,7 +1165,7 @@ function handleCSVFile(f){
         let rawDate = row[headers.indexOf('날짜')];
         let dateStr = "";
         if(rawDate instanceof Date) {
-          dateStr = rawDate.toISOString().split('T')[0];
+          dateStr = excelDateToStr(rawDate);
         } else if(typeof rawDate === 'string') {
           dateStr = rawDate.split(' ')[0];
         } else {
@@ -1185,6 +1197,26 @@ function handleCSVFile(f){
     });
 
     csvRows = [...opsRows, ...checkRows];
+
+    // ── 발생내용(content) 공백 보정 ──
+    // 같은 차호+위치에서 며칠에 걸쳐 후속 조치가 이어질 때, 후속 행은 발생내용이
+    // 비어있고 조치내역(action)만 채워지는 경우가 있다. 이때는 직전(가장 가까운 과거)
+    // 날짜의 같은 차호+위치 발생내용을 그대로 이어받아 표시한다.
+    (function fillEmptyContent(){
+      const byKey = {};
+      opsRows.forEach(r => {
+        const key = r.train + '|' + r.loc;
+        (byKey[key] = byKey[key] || []).push(r);
+      });
+      Object.values(byKey).forEach(list => {
+        list.sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+        let lastContent = '';
+        list.forEach(r => {
+          if(r.content){ lastContent = r.content; }
+          else if(lastContent){ r.content = lastContent; }
+        });
+      });
+    })();
 
     if(!csvRows.length){ alert('엑셀 파일에서 인식 가능한 데이터를 찾을 수 없습니다.\n("날짜" 컬럼이 있는 시트가 필요합니다)'); return; }
 
@@ -1476,7 +1508,7 @@ function openModal(id){document.getElementById(id).classList.add('show');if(id==
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 function toggleSearch(){const sb=document.getElementById('search-bar');sb.style.display=sb.style.display==='none'?'flex':'none';}
 function clearSearch(){document.getElementById('srchTrain').value='';document.getElementById('srchLoc').value='';document.getElementById('srchContent').value='';document.getElementById('srchStatus').value='';render();}
-function setPeriod(days){const today=new Date();const start=new Date(today);start.setDate(start.getDate()-days+1);document.getElementById('sDate').value=start.toISOString().split('T')[0];document.getElementById('eDate').value=today.toISOString().split('T')[0];document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));document.getElementById('pb'+days).classList.add('active');document.getElementById('heatmap-card').scrollLeft=0;render();}
+function setPeriod(days){const today=new Date();const start=new Date(today);start.setDate(start.getDate()-days+1);document.getElementById('sDate').value=start.toISOString().split('T')[0];document.getElementById('eDate').value=today.toISOString().split('T')[0];document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));document.getElementById('pb'+days).classList.add('active');document.getElementById('heatmap-card').scrollLeft=0;render();requestAnimationFrame(()=>{const card=document.getElementById('heatmap-card');card.scrollLeft=card.scrollWidth;});}
 function clearPeriodActive(){document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));document.getElementById('heatmap-card').scrollLeft=0;}
 
 function render(){renderLegendBar();renderFilters();renderHeatmap();if(selTrain) renderSummary();}
