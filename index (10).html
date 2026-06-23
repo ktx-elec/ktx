@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>고속차량 정비이력 모니터링</title>
+<style>
+:root{
+  --bg:#0f1923;
+  --bg2:#161f2d;
+  --bg3:#1a2332;
+  --card:#1c2636;
+  --card2:#212f42;
+  --border:#2a3850;
+  --border2:#354a66;
+  --txt:#e2e8f0;
+  --txt2:#94a3b8;
+  --txt3:#64748b;
+  --accent:#3b82f6;
+  --c-normal:#22c55e;
+  --c-warning:#eab308;
+  --c-critical:#ef4444; /* 자동차단용 붉은색 */
+  --c-rabbit:#a855f7;   /* 토끼뜀용 보라색 */
+  --c-fgi:#3b82f6;
+  --c-nodata:#475569;
+  --header-h:52px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;width:100%;overflow:hidden;}
+body{background:var(--bg);color:var(--txt);font-family:'Malgun Gothic','Segoe UI',sans-serif;font-size:13px;display:flex;flex-direction:column;}
+#header{height:var(--header-h);min-height:var(--header-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0;overflow:hidden;white-space:nowrap;}
+#header .title{font-size:15px;font-weight:700;color:#fff;white-space:nowrap;letter-spacing:.3px;}
+#header [onclick="handleAdminBtn()"]:hover .title{color:var(--accent);}
+#header [onclick="handleAdminBtn()"]:hover{opacity:.85;}
+#header .sep{width:1px;height:28px;background:var(--border2);flex-shrink:0;}
+.hdr-grp{display:flex;align-items:center;gap:8px;}
+.hdr-grp label{font-size:11px;color:var(--txt2);white-space:nowrap;}
+.hdr-input{background:var(--card);border:1px solid var(--border2);color:var(--txt);padding:5px 8px;border-radius:4px;font-size:12px;outline:none;}
+.hdr-input:focus{border-color:var(--accent);}
+.hdr-select{background:var(--card);border:1px solid var(--border2);color:var(--txt);padding:5px 24px 5px 8px;border-radius:4px;font-size:12px;outline:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 7px center;}
+.legend-bar{display:flex;align-items:center;gap:12px;margin-left:4px;}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txt2);cursor:pointer;}
+.leg .sq{width:12px;height:12px;border-radius:3px;flex-shrink:0;}
+.hdr-spacer{flex:1;}
+.icon-btn{background:transparent;border:none;color:var(--txt2);cursor:pointer;width:30px;height:30px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:15px;}
+.icon-btn:hover{background:var(--card2);color:var(--txt);}
+.admin-btn{background:var(--card2);border:1px solid var(--border2);color:var(--txt2);padding:5px 11px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;}
+.admin-btn.on{background:#7c3aed;border-color:#7c3aed;color:#fff;}
+#body{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+#main-row{display:flex;flex:1;overflow:hidden;min-height:0;}
+#heatmap-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border);}
+#heatmap-card{flex:1;overflow-x:auto;overflow-y:scroll;padding:0;scrollbar-gutter:stable;}
+#heatmap-table{border-collapse:collapse;table-layout:fixed;}
+#heatmap-table th,#heatmap-table td{border:1px solid var(--border);padding:0;text-align:center;vertical-align:middle;}
+#heatmap-table thead th{background:var(--card2);color:var(--txt2);font-size:11px;font-weight:600;padding:8px 4px;position:sticky;top:0;z-index:10;white-space:nowrap;}
+#heatmap-table thead th:first-child{z-index:11;position:sticky;left:0;top:0;}
+#heatmap-table thead th:nth-child(2){z-index:11;position:sticky;left:80px;top:0;}
+#heatmap-table tbody tr.hm-row td:first-child{position:sticky;left:0;background:var(--card2);z-index:5;font-weight:700;font-size:10px;padding:0 6px;white-space:nowrap;width:80px;cursor:pointer;border-right:2px solid var(--border2);text-align:center;}
+#heatmap-table tbody tr.hm-row td:nth-child(2){position:sticky;left:80px;background:var(--card2);z-index:5;width:80px;min-width:80px;padding:1px 3px;text-align:center;}
+#heatmap-table tbody tr.hm-row{height:16px;}
+#heatmap-table tbody tr.hm-row:hover td{background:var(--card2) !important;filter:brightness(1.1);}
+#heatmap-table tbody tr.hm-row.sel td:first-child{color:var(--accent) !important;}
+#heatmap-table tbody tr.hm-row.sel{outline:2px solid var(--accent);outline-offset:-1px;}
+#heatmap-table tbody tr.hm-row.expanded td{background:var(--bg3) !important;filter:none !important;}
+#heatmap-table tbody tr.hm-row.expanded td:first-child{background:var(--bg3) !important;color:var(--accent);}
+#heatmap-table tbody tr.hm-row.expanded td:nth-child(2){background:var(--bg3) !important;}
+.cell-dot{width:10px;height:10px;border-radius:2px;display:inline-block;cursor:pointer;transition:transform .1s;}
+.cell-dot:hover{transform:scale(1.25);}
+.cell-dot.empty{background:var(--c-nodata);opacity:.3;}
+.badge-sm{display:inline-block;padding:0px 5px;border-radius:8px;font-size:8px;font-weight:700;color:#fff;white-space:nowrap;min-width:42px;text-align:center;line-height:14px;}
+#right-panel{width:300px;min-width:300px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:var(--bg2);}
+#rp-top{flex-shrink:0;padding:12px 14px;border-bottom:1px solid var(--border);}
+.rp-train-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;justify-content:space-between;}
+.rp-train-head .name{font-size:16px;font-weight:700;color:#fff;}
+.sum-boxes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px;}
+.sum-box{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px 6px;text-align:center;}
+.sum-box .n{font-size:18px;font-weight:700;color:var(--accent);}
+.sum-box .l{font-size:10px;color:var(--txt3);margin-top:2px;}
+.rp-sub-title{font-size:11px;font-weight:700;color:var(--txt3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
+.rp-evt-item{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;}
+.rp-evt-item:hover{background:var(--card2);padding-left:4px;border-radius:4px;}
+.rp-evt-item .d{font-size:10px;color:var(--txt3);min-width:44px;}
+.rp-evt-item .eq{font-size:11px;color:var(--txt2);min-width:52px;}
+.rp-evt-item .ct{font-size:12px;flex:1;}
+#rp-detail{flex:1;overflow-y:auto;padding:12px 14px;}
+.det-title{font-size:13px;font-weight:700;color:#fff;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px;}
+.det-row{display:flex;padding:5px 0;border-bottom:1px solid var(--border);gap:8px;}
+.det-k{font-size:11px;color:var(--txt3);font-weight:600;min-width:72px;flex-shrink:0;}
+.det-v{font-size:12px;color:var(--txt);line-height:1.5;}
+.det-list{margin:3px 0 0 12px;font-size:12px;color:var(--txt2);line-height:1.7;}
+.empty-det{color:var(--txt3);font-size:12px;padding:20px 0;text-align:center;}
+#bottom-panel{display:none !important;}
+#bottom-resize{height:4px;background:var(--border);cursor:ns-resize;flex-shrink:0;}
+#bottom-inner{display:flex;flex:1;overflow:hidden;min-height:0;}
+#timeline-wrap{flex:1;overflow:auto;padding:0;}
+#tl-head{padding:8px 12px;font-size:12px;font-weight:700;color:var(--txt2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;background:var(--card2);}
+#timeline-table{width:100%;border-collapse:collapse;table-layout:fixed;}
+#timeline-table th,#timeline-table td{border:1px solid var(--border);padding:5px 6px;vertical-align:top;}
+#timeline-table thead th{background:var(--card2);color:var(--txt2);font-size:11px;font-weight:600;text-align:center;white-space:nowrap;position:sticky;top:0;}
+#timeline-table thead th:first-child{text-align:left;}
+#timeline-table tbody td:first-child{background:var(--card2);font-size:11px;font-weight:600;color:var(--txt2);white-space:nowrap;width:90px;}
+#timeline-table tbody td{text-align:center;font-size:11px;color:var(--txt3);}
+.tl-cell{text-align:left;cursor:pointer;}
+.tl-cell:hover{background:var(--card2);}
+.tl-cell .pt{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:middle;flex-shrink:0;}
+.tl-cell .ct-txt{font-size:12px;color:var(--txt);line-height:1.4;}
+.tl-cell .sub-txt{font-size:11px;color:var(--txt3);}
+.tl-cell.hl-critical{background:rgba(239,68,68,.1);}
+.tl-cell.hl-warning{background:rgba(234,179,8,.08);}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center;}
+.modal.show{display:flex;}
+.modal-box{background:var(--card);border:1px solid var(--border2);border-radius:10px;width:92%;max-width:640px;max-height:88vh;overflow-y:auto;padding:22px;}
+.modal-box.wide{max-width:820px;}
+.modal-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+.modal-hd h2{font-size:16px;font-weight:700;color:#fff;}
+.x-btn{background:transparent;border:none;color:var(--txt3);font-size:22px;cursor:pointer;line-height:1;}
+.x-btn:hover{color:#fff;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.form-row{display:flex;flex-direction:column;gap:4px;}
+.form-row.full{grid-column:1/-1;}
+.form-row label{font-size:11px;color:var(--txt3);font-weight:600;}
+.form-input,.form-select,.form-textarea{background:var(--bg2);border:1px solid var(--border2);color:var(--txt);padding:8px 10px;border-radius:5px;font-size:12px;outline:none;font-family:inherit;}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--accent);}
+.form-textarea{resize:vertical;min-height:64px;}
+.modal-foot{margin-top:18px;display:flex;justify-content:flex-end;gap:8px;}
+.btn{padding:8px 18px;border:none;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:#2563eb;}
+.btn-danger{background:#dc2626;color:#fff;}
+.btn-ghost{background:var(--card2);color:var(--txt2);border:1px solid var(--border2);}
+.btn-ghost:hover{color:#fff;}
+.btn-success{background:#16a34a;color:#fff;}
+.btn-warning{background:#d97706;color:#fff;}
+.adm-tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:0;}
+.adm-tab{background:transparent;border:none;color:var(--txt3);padding:8px 14px;cursor:pointer;font-size:12px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;}
+.adm-tab.on{color:var(--accent);border-bottom-color:var(--accent);}
+.adm-content{display:none;}
+.adm-content.show{display:block;}
+.adm-list-item{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--card2);border-radius:5px;margin-bottom:6px;}
+.adm-list-item .name{flex:1;font-size:12px;}
+.adm-list-item input{flex:1;background:var(--bg2);border:1px solid var(--border2);color:var(--txt);padding:5px 8px;border-radius:4px;font-size:12px;}
+.drop-area{border:2px dashed var(--border2);border-radius:8px;padding:30px;text-align:center;cursor:pointer;transition:border-color .2s;color:var(--txt3);}
+.drop-area:hover,.drop-area.drag{border-color:var(--accent);color:var(--txt);}
+.csv-preview{margin-top:12px;overflow-x:auto;font-size:11px;}
+.csv-preview table{width:100%;border-collapse:collapse;}
+.csv-preview th,.csv-preview td{border:1px solid var(--border);padding:5px 8px;}
+.csv-preview th{background:var(--card2);}
+.csv-opt-row{display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px;background:var(--card2);border-radius:6px;border:1px solid var(--border);}
+.csv-opt-row label{font-size:12px;color:var(--txt2);cursor:pointer;display:flex;align-items:center;gap:6px;}
+.stat-tab{padding:4px 12px;border:1px solid var(--border2);border-radius:16px;font-size:11px;font-weight:700;cursor:pointer;background:var(--card);color:var(--txt2);transition:all .15s;}
+.stat-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.stat-tab:hover:not(.active){background:var(--card2);}
+.month-bar-wrap{display:flex;flex-direction:column;gap:3px;}
+.month-row{display:flex;align-items:center;gap:6px;font-size:10px;}
+.month-lbl{min-width:28px;color:var(--txt3);text-align:right;}
+.month-bar{flex:1;height:10px;background:var(--border);border-radius:4px;overflow:hidden;}
+.month-bar-fill{height:100%;border-radius:4px;transition:width .4s;}
+.month-cnt{min-width:22px;text-align:right;color:var(--txt);font-weight:700;}
+.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+.stat-card{background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:12px;}
+.stat-card h3{font-size:11px;color:var(--txt3);font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;}
+.stat-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+.stat-bar-row .lbl{font-size:11px;color:var(--txt2);min-width:60px;}
+.stat-bar{flex:1;height:12px;background:var(--border);border-radius:6px;overflow:hidden;}
+.stat-bar-fill{height:100%;border-radius:6px;transition:width .4s;}
+.stat-bar-row .cnt{font-size:11px;color:var(--txt);min-width:20px;text-align:right;}
+.rabbit-list{max-height:160px;overflow-y:auto;font-size:11px;}
+.rabbit-item{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border);}
+.rabbit-item .ri-train{color:var(--txt);font-weight:700;min-width:52px;}
+.rabbit-item .ri-loc{color:var(--txt2);flex:1;}
+.rabbit-item .ri-cnt{color:var(--c-rabbit);font-weight:700;min-width:24px;text-align:right;}
+#search-bar{padding:6px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--bg2);flex-shrink:0;}
+#search-bar input{background:var(--card);border:1px solid var(--border2);color:var(--txt);padding:5px 10px;border-radius:4px;font-size:12px;outline:none;width:180px;}
+
+.period-btns{display:flex;gap:3px;}
+.period-btn{background:var(--card);border:1px solid var(--border2);color:var(--txt2);padding:4px 9px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;}
+.period-btn:hover{border-color:var(--accent);color:var(--txt);}
+.period-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+.fleet-filter-btns{display:flex;gap:6px;align-items:center;}
+.fleet-btn{padding:5px 14px;border:none;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;transition:opacity .15s,box-shadow .15s;white-space:nowrap;}
+.fleet-btn:hover{opacity:.85;}
+.fleet-btn.active{box-shadow:0 0 0 2px rgba(255,255,255,.5);}
+.fleet-btn-ktx{background:#1e3a8a;}
+.fleet-btn-sr{background:#7f1d1d;}
+
+::-webkit-scrollbar{width:7px;height:7px;}
+::-webkit-scrollbar-track{background:#0a1018;}
+::-webkit-scrollbar-thumb{background:#2a3850;border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:#354a66;}
+::-webkit-scrollbar-corner{background:#0a1018;}
+* {scrollbar-color:#2a3850 #0a1018;scrollbar-width:thin;}
+
+.acc-label-row td{background:var(--bg) !important;border-top:1px solid var(--border2) !important;border-bottom:1px solid var(--border2) !important;padding:3px 6px !important;height:26px !important;}
+.acc-label-row td:first-child{position:sticky;left:0;z-index:6;background:var(--bg) !important;font-size:10px;font-weight:700;color:var(--txt3);text-align:left !important;padding:3px 10px !important;border-right:2px solid var(--border2) !important;white-space:nowrap;min-width:160px;}
+.acc-label-row td:nth-child(2){position:sticky;left:80px;z-index:6;background:var(--bg) !important;}
+.tl-detail-row td{border:1px solid var(--border);padding:0;vertical-align:middle;height:32px;}
+.tl-loc-cell{position:sticky;left:0;background:var(--bg2) !important;z-index:5;font-size:10px;font-weight:700;color:var(--txt2);white-space:nowrap;padding:0 8px !important;border-right:2px solid var(--border2) !important;vertical-align:middle;text-align:center;}
+.tl-detail-row td:nth-child(2){position:sticky;left:80px;background:var(--bg2) !important;z-index:5;width:52px;}
+.tl-detail-row td:nth-child(n+3){z-index:0;}
+.tl-detail-cell{cursor:pointer;text-align:left;vertical-align:top;padding:3px 4px !important;overflow:hidden;}
+.tl-evt-block{margin-bottom:3px;padding:4px 6px;border-radius:3px;cursor:pointer;transition:transform .1s;}
+.tl-evt-block:hover{transform:scale(1.02);filter:brightness(1.1);}
+.tl-evt-block:last-child{margin-bottom:0;}
+.tl-detail-cell .ct-txt{font-size:11px;color:var(--txt);line-height:1.3;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tl-detail-cell .sub-txt{font-size:10px;color:var(--txt3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tl-empty-cell{text-align:center;color:var(--border2);font-size:12px;vertical-align:middle;}
+.tl-last-row td,.tl-last-cell{border-bottom:1px solid var(--border2) !important;}
+.expand-all-btn{background:var(--card2);border:1px solid var(--border2);color:var(--txt);padding:5px 12px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;}
+.expand-all-btn:hover{border-color:var(--accent);color:#fff;}
+.expand-all-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.ops-table-wrap{height:72vh;min-height:72vh;max-height:72vh;overflow-y:auto;border:1px solid var(--border);border-radius:6px;}
+.ops-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
+.ops-table thead th{position:sticky;top:0;background:var(--card2);color:var(--txt2);font-weight:700;padding:8px 6px;text-align:center;border-bottom:2px solid var(--border2);z-index:2;white-space:nowrap;}
+.ops-table tbody td{padding:7px 6px;border-bottom:1px solid var(--border);color:var(--txt);text-align:center;vertical-align:top;word-break:break-word;overflow-wrap:break-word;white-space:normal;}
+.ops-table tbody tr:hover td{background:var(--card2);}
+.ops-table tbody td.ops-left{text-align:left;}
+.ops-table tbody td.ops-date{white-space:nowrap;color:var(--txt2);font-weight:600;}
+.ops-table tbody td.ops-train{font-weight:700;white-space:nowrap;}
+.ops-table th:nth-child(1),.ops-table td:nth-child(1){width:100px;}
+.ops-table th:nth-child(2),.ops-table td:nth-child(2){width:100px;}
+.ops-table th:nth-child(3),.ops-table td:nth-child(3){width:100px;}
+.ops-table th:nth-child(4),.ops-table td:nth-child(4){width:230px;}
+.ops-table th:nth-child(5),.ops-table td:nth-child(5){width:110px;}
+.ops-table th:nth-child(6),.ops-table td:nth-child(6){width:230px;}
+.ops-table th:nth-child(7),.ops-table td:nth-child(7){width:100px;}
+.ops-table th:nth-child(8),.ops-table td:nth-child(8){width:100px;}
+.ops-table th:nth-child(9),.ops-table td:nth-child(9){width:80px;}
+.ops-table .det-list{margin:0 0 0 14px;text-align:left;}
+.ops-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;color:#fff;white-space:nowrap;}
+.ops-empty{padding:30px;text-align:center;color:var(--txt3);font-size:12px;}
+#opsModal .modal-box.wide{width:96vw;max-width:1600px;height:90vh;max-height:90vh;display:flex;flex-direction:column;}
+#opsModal #opsTableWrap{flex:1;}
+.admin-only{display:none !important;}
+.danger-zone{border:1px solid #dc2626;border-radius:6px;padding:12px;margin-top:16px;background:rgba(220,38,38,.05);}
+.danger-zone h4{color:#dc2626;font-size:12px;font-weight:700;margin-bottom:8px;}
+#rp-close-btn{display:none;background:transparent;border:none;color:var(--txt3);font-size:20px;cursor:pointer;padding:4px 8px;flex-shrink:0;}
+
+/* ── 모바일 반응형 (≤768px) ───────────────────────────────── */
+#rp-overlay{display:none;}
+@media (max-width: 768px){
+  :root{ --header-h:auto; }
+  #header{flex-wrap:wrap;height:auto;min-height:0;padding:6px 10px;gap:5px 8px;row-gap:5px;align-items:center;}
+  #header .title{font-size:13px;}
+  #header .sep{display:none;}
+
+  /* 1행: 타이틀(order 1) + KTX/SR(order 2) */
+  #header > div:first-child{order:1;}
+  .fleet-filter-btns{order:2;}
+
+  /* 2행: 보조 아이콘들 한 줄로 */
+  .expand-all-btn{order:3;padding:4px 8px;font-size:11px;}
+  #header > .icon-btn[title="통계"]{order:4;}
+  #header > .icon-btn[title="차량운행현황"]{order:5;}
+  #header > .icon-btn[title="검색"]{order:6;}
+  #header > .icon-btn#csvBtn{order:7;}
+  #header > .icon-btn#setupBtn{order:8;}
+
+  /* 3행: 기간 선택 전체 폭 */
+  .hdr-grp{order:9;flex-basis:100%;flex-wrap:nowrap;gap:4px;}
+  .hdr-grp label{display:none;}
+  .hdr-input{padding:4px 4px;font-size:10px;width:40%;min-width:0;flex:1;}
+  .hdr-grp span{padding:0 1px;flex-shrink:0;}
+
+  /* 4행: 범례 가로 스크롤 */
+  .legend-bar{order:10;flex-wrap:nowrap;overflow-x:auto;gap:10px;flex-basis:100%;margin-left:0;-webkit-overflow-scrolling:touch;padding-bottom:2px;}
+  .legend-bar::-webkit-scrollbar{height:3px;}
+  .leg{flex-shrink:0;}
+
+  .hdr-spacer{display:none;}
+  .period-btns{gap:2px;}
+  .period-btn{padding:4px 7px;}
+  .fleet-btn{padding:4px 10px;font-size:11px;}
+  #search-bar{flex-wrap:wrap;padding:8px 10px;}
+  #search-bar input{width:auto;flex:1 1 100px;min-width:90px;}
+
+  #main-row{flex-direction:column;}
+  #heatmap-wrap{border-right:none;border-bottom:1px solid var(--border);flex:1 1 auto;min-height:0;}
+  #heatmap-table tbody tr.hm-row td:first-child{font-size:9px;padding:0 3px;}
+  #heatmap-table tbody tr.hm-row td:nth-child(2){left:50px;}
+  #heatmap-table thead th:nth-child(2){left:50px;}
+  .acc-label-row td:nth-child(2){left:50px;}
+  .tl-detail-row td:nth-child(2){left:50px;}
+
+  /* 우측 상세 패널 → 하단 슬라이드업 시트로 전환 */
+  #rp-overlay{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;opacity:0;pointer-events:none;transition:opacity .2s;}
+  #rp-overlay.show{opacity:1;pointer-events:auto;}
+  #right-panel{
+    position:fixed;left:0;right:0;bottom:0;width:auto;min-width:0;
+    height:72vh;max-height:72vh;
+    border-top-left-radius:14px;border-top-right-radius:14px;
+    border-top:1px solid var(--border2);
+    box-shadow:0 -8px 24px rgba(0,0,0,.4);
+    z-index:200;
+    transform:translateY(100%);
+    transition:transform .25s ease;
+  }
+  #right-panel.show{transform:translateY(0);}
+  #rp-drag-handle{display:flex;justify-content:center;padding:8px 0 2px;flex-shrink:0;}
+  #rp-drag-handle span{width:36px;height:4px;border-radius:3px;background:var(--border2);}
+  #rp-close-btn{display:flex;}
+
+  .modal-box{padding:16px;width:94%;}
+  .modal-box.wide{max-width:94vw;}
+  #opsModal .modal-box.wide{width:96vw;height:85vh;max-height:85vh;}
+  .ops-table-wrap{overflow-x:auto;height:60vh;min-height:60vh;max-height:60vh;}
+  .ops-table{width:max-content;min-width:100%;}
+  .form-grid{grid-template-columns:1fr;}
+  .stat-grid{grid-template-columns:1fr;}
+  .adm-tabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(to right, black calc(100% - 20px), transparent 100%);}
+  .adm-tab{flex-shrink:0;}
+  .ops-table th:nth-child(4),.ops-table td:nth-child(4),
+  .ops-table th:nth-child(6),.ops-table td:nth-child(6){width:160px;}
+  .modal-foot{flex-wrap:wrap;justify-content:flex-start;}
+  .modal-foot .btn{flex:1 1 auto;white-space:nowrap;font-size:11px;padding:8px 10px;}
+  .modal-foot .btn[style*="margin-right:auto"]{flex-basis:100%;order:-1;margin-right:0 !important;}
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="header">
+  <div style="display:flex;flex-direction:column;gap:1px;align-items:center;text-align:center;cursor:pointer;" onclick="handleAdminBtn()" title="관리자 메뉴">
+    <span class="title">🚄 고속차량 정비이력 모니터링</span>
+    <span style="font-size:10px;color:var(--txt3);letter-spacing:.2px;width:100%;text-align:center;">(부산철도차량정비단 경정비전기부)</span>
+  </div>
+  <div class="fleet-filter-btns">
+    <button class="fleet-btn fleet-btn-ktx active" id="fleetKTX" onclick="setFleetFilter('KTX')">KTX</button>
+    <button class="fleet-btn fleet-btn-sr" id="fleetSR" onclick="setFleetFilter('SR')">SR</button>
+  </div>
+  <div class="sep"></div>
+  <button class="expand-all-btn" id="expandAllBtn" onclick="toggleExpandAll()" title="전체 편성 펼치기/접기">전체보기 ▼</button>
+  <button class="icon-btn" title="통계" onclick="openModal('statModal')">📊</button>
+  <button class="icon-btn" title="차량운행현황" onclick="openModal('opsModal')">🚆</button>
+  <div class="sep"></div>
+  <div class="hdr-grp">
+    <label>기간</label>
+    <div class="period-btns">
+      <button class="period-btn" id="pb7" onclick="setPeriod(7)">7일</button>
+      <button class="period-btn active" id="pb14" onclick="setPeriod(14)">14일</button>
+      <button class="period-btn" id="pb30" onclick="setPeriod(30)">30일</button>
+    </div>
+    <input type="date" id="sDate" class="hdr-input" onchange="clearPeriodActive();render()">
+    <span style="color:var(--txt3)">~</span>
+    <input type="date" id="eDate" class="hdr-input" onchange="clearPeriodActive();render()">
+  </div>
+  <div class="sep"></div>
+  <div class="legend-bar" id="legendBar"></div>
+  <div class="hdr-spacer"></div>
+  <button class="icon-btn" title="검색" onclick="toggleSearch()">🔍</button>
+  <button class="icon-btn admin-only" id="csvBtn" title="데이터 가져오기/내보내기" onclick="openModal('csvModal')">📥</button>
+  <button class="icon-btn admin-only" id="setupBtn" title="시스템 설정" onclick="openModal('admModal')">⚙️</button>
+</div>
+<div id="search-bar" style="display:none">
+  <span style="font-size:11px;color:var(--txt3)">검색:</span>
+  <input id="srchTrain" placeholder="편성" oninput="render()">
+  <input id="srchLoc" placeholder="고장위치" oninput="render()">
+  <input id="srchContent" placeholder="현상" oninput="render()">
+  <select id="srchStatus" class="hdr-select" onchange="render()" style="width:100px">
+    <option value="">상태 전체</option>
+  </select>
+  <button class="btn btn-ghost" onclick="clearSearch()" style="padding:5px 10px;font-size:11px;">초기화</button>
+</div>
+<div id="body">
+  <div id="main-row">
+    <div id="heatmap-wrap"><div id="heatmap-card"><table id="heatmap-table"><thead></thead><tbody></tbody></table></div></div>
+    <div id="rp-overlay" onclick="closeRightPanelMobile()"></div>
+    <div id="right-panel">
+      <div id="rp-drag-handle"><span></span></div>
+      <div id="rp-top">
+        <div class="rp-train-head"><div style="display:flex;align-items:center;gap:8px;"><span class="name" id="rpName">—</span><span class="badge-sm" id="rpBadge" style="background:#475569">—</span></div><button id="rp-close-btn" onclick="closeRightPanelMobile()" title="닫기">×</button></div>
+        <div class="sum-boxes">
+          <div class="sum-box"><div class="n" id="rpEvtN">0</div><div class="l">이벤트(건)</div></div>
+          <div class="sum-box"><div class="n" id="rpFgiN">0</div><div class="l">주기검수(건)</div></div>
+          <div class="sum-box"><div class="n" id="rpFailN">0</div><div class="l">고장(건)</div></div>
+        </div>
+        <div class="rp-sub-title">최근 이벤트</div>
+        <div id="rpEvtList"><div class="empty-det">편성을 선택하세요</div></div>
+      </div>
+      <div id="rp-detail"><div class="empty-det">이벤트를 클릭하면 상세가 표시됩니다</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 모달 섹션 (생략 방지) -->
+<div class="modal" id="evtModal"><div class="modal-box"><div class="modal-hd"><h2 id="evtModalTitle">이벤트 등록</h2><button class="x-btn" onclick="closeModal('evtModal')">×</button></div><div class="form-grid"><div class="form-row"><label>편성 *</label><select id="fTrain" class="form-select"></select></div><div class="form-row"><label>고장위치 *</label><select id="fLoc" class="form-select"></select></div><div class="form-row"><label>발생일 *</label><input id="fDate" type="date" class="form-input"></div><div class="form-row"><label>상태 *</label><select id="fStatus" class="form-select"></select></div><div class="form-row full"><label>현상 *</label><input id="fContent" class="form-input" placeholder="예) 자동차단"></div><div class="form-row full"><label>조치내역 *</label><input id="fAction" class="form-input" placeholder="예) 제어카드 교체"></div><div class="form-row full"><label>상세 점검내역 (선택)</label><textarea id="fChecks" class="form-textarea" placeholder="한 줄에 하나씩 입력"></textarea></div><div class="form-row full"><label>비고 (선택)</label><input id="fNote" class="form-input"></div></div><input type="hidden" id="fEditId"><div class="modal-foot"><button class="btn btn-danger" id="fDelBtn" style="display:none" onclick="deleteEvt()">삭제</button><button class="btn btn-ghost" onclick="closeModal('evtModal')">취소</button><button class="btn btn-primary" onclick="saveEvt()">저장</button></div></div></div>
+<div class="modal" id="admModal"><div class="modal-box wide"><div class="modal-hd"><h2>⚙️ 시스템 설정</h2><button class="x-btn" onclick="closeModal('admModal')">×</button></div><div class="adm-tabs" id="admTabs"></div><div class="adm-content show" id="adm-legend"><div id="legendAdmList"></div><button class="btn btn-success" style="margin-top:8px" onclick="addLegendItem()">+ 범례 추가</button><div class="modal-foot"><button class="btn btn-primary" onclick="saveLegendAdm()">저장</button></div></div><div class="adm-content" id="adm-data"><div style="font-size:12px;color:var(--txt2);margin-bottom:16px;line-height:1.6;">이벤트 데이터 관리 및 시스템 초기화 설정을 수행합니다.</div><div class="danger-zone"><h4>⚠️ 위험 구역</h4><div style="font-size:11px;color:var(--txt2);margin-bottom:10px;">아래 작업은 되돌릴 수 없습니다. 신중하게 사용하세요.</div><button class="btn btn-danger" onclick="resetAllEvents()">🗑️ 모든 이벤트 데이터 초기화</button></div></div><div class="adm-content" id="adm-trains"><div id="trainAdmList"></div><button class="btn btn-success" style="margin-top:8px" onclick="addTrainItem()">+ 편성 추가</button><div class="modal-foot"><button class="btn btn-primary" onclick="saveTrainAdm()">저장</button></div></div><div class="adm-content" id="adm-locs"><div id="locAdmList"></div><button class="btn btn-success" style="margin-top:8px" onclick="addLocItem()">+ 위치 추가</button><div class="modal-foot"><button class="btn btn-primary" onclick="saveLocAdm()">저장</button></div></div><div class="adm-content" id="adm-github">
+  <div style="font-size:12px;color:var(--txt2);margin-bottom:14px;line-height:1.6;">
+    GitHub 저장소에 엑셀 업로드 데이터를 게시하면, 모든 방문자가 같은 데이터를 보게 됩니다.<br>
+    <b style="color:var(--txt)">⚠️ 토큰은 이 브라우저 세션에만 저장되며, 새로고침/닫기 시 사라집니다.</b> 매번 다시 입력해야 할 수 있습니다.
+  </div>
+  <div class="form-grid">
+    <div class="form-row"><label>저장소 소유자 (GitHub 아이디/조직명)</label><input type="text" id="ghOwner" class="form-input" placeholder="예: mygithubid"></div>
+    <div class="form-row"><label>저장소 이름</label><input type="text" id="ghRepo" class="form-input" placeholder="예: ktx-monitor"></div>
+    <div class="form-row"><label>브랜치</label><input type="text" id="ghBranch" class="form-input" placeholder="main" value="main"></div>
+    <div class="form-row"><label>Personal Access Token (fine-grained 권장, contents 쓰기 권한)</label><input type="password" id="ghToken" class="form-input" placeholder="github_pat_..."></div>
+  </div>
+  <div style="font-size:11px;color:var(--txt3);margin-top:10px;line-height:1.6;">
+    토큰 발급: GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → 해당 저장소만 선택 → Repository permissions에서 <b>Contents: Read and write</b> 권한 부여.
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-ghost" onclick="testGhConnection()" style="margin-right:auto">연결 테스트</button>
+    <button class="btn btn-primary" onclick="saveGhConfigAdm()">저장</button>
+  </div>
+</div></div></div>
+<div class="modal" id="csvModal"><div class="modal-box wide"><div class="modal-hd"><h2>📥 데이터 가져오기</h2><button class="x-btn" onclick="closeModal('csvModal')">×</button></div><div class="drop-area" id="dropArea" onclick="document.getElementById('csvFileIn').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)"><div style="font-size:28px;margin-bottom:8px">📂</div><div>엑셀(.xlsx) 파일을 드래그하거나 클릭하여 선택</div><div style="font-size:11px;margin-top:6px;color:var(--txt3)"></div><input type="file" id="csvFileIn" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleCSVFile(this.files[0])"></div><div class="csv-opt-row" id="csvOptRow" style="display:none;"><label><input type="checkbox" id="csvReplaceAll"><span>기존 데이터 전체 삭제 후 등록 (가져오기 전 모든 이벤트를 삭제합니다)</span></label></div><div class="csv-preview" id="csvPreview"></div><div class="modal-foot"><button class="btn btn-ghost" onclick="exportCSV()" style="margin-right:auto">📤 데이터 내보내기</button><button class="btn btn-success" onclick="manualPublishClick()" title="현재 DB 데이터를 GitHub data.json에 즉시 게시">🚀 GitHub에 게시</button><button class="btn btn-warning" onclick="exportOfflineHTML()" title="현재 DB 데이터를 HTML에 내장하여 오프라인 배포본 생성">📦 배포용 HTML 생성</button><button class="btn btn-ghost" id="csvCancelBtn" onclick="closeModal('csvModal')">취소</button><button class="btn btn-primary" id="csvImportBtn" style="display:none" onclick="importCSV()">일괄 등록</button></div></div></div>
+<div class="modal" id="statModal"><div class="modal-box wide"><div class="modal-hd"><h2>📊 통계</h2><button class="x-btn" onclick="closeModal('statModal')">×</button></div>
+<div style="display:flex;gap:6px;margin-bottom:10px;">
+  <button class="fleet-btn fleet-btn-ktx active" id="statKTX" onclick="setStatFleet('KTX')">KTX</button>
+  <button class="fleet-btn fleet-btn-sr" id="statSR" onclick="setStatFleet('SR')">SR</button>
+</div>
+<div style="display:flex;align-items:center;gap:4px;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px;">
+  <button class="stat-tab active" id="stab-year" onclick="setStatTab('year')">📅 연간</button>
+  <button class="stat-tab" id="stab-month" onclick="setStatTab('month')">📆 월간</button>
+  <button class="stat-tab" id="stab-week" onclick="setStatTab('week')">📋 주간</button>
+  <div id="weekRangeCtrl" style="display:none;margin-left:auto;align-items:center;gap:6px;">
+    <span style="font-size:11px;color:var(--txt3)">최근</span>
+    <select id="weekRangeN" class="hdr-select" style="width:70px;" onchange="renderStat()">
+      <option value="1">1주</option><option value="2">2주</option><option value="4" selected>4주</option><option value="8">8주</option><option value="12">12주</option>
+    </select>
+  </div>
+</div>
+<div id="statYearLabel" style="font-size:12px;color:var(--txt3);margin-bottom:10px;"></div>
+<div class="stat-grid" id="statGrid"></div>
+<div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal('statModal')">닫기</button></div>
+</div></div>
+<div class="modal" id="opsModal"><div class="modal-box wide"><div class="modal-hd"><h2>🚆 차량운행현황</h2><button class="x-btn" onclick="closeModal('opsModal')">×</button></div>
+<div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;">
+  <button class="fleet-btn fleet-btn-ktx active" id="opsKTX" onclick="setOpsFleet('KTX')">KTX</button>
+  <button class="fleet-btn fleet-btn-sr" id="opsSR" onclick="setOpsFleet('SR')">SR</button>
+  <input id="opsTrainFilter" class="hdr-input" style="margin-left:10px;width:130px;" placeholder="편성 검색 (예: KTX01)" oninput="renderOps()">
+  <button class="btn btn-ghost" style="padding:5px 10px;font-size:11px;" onclick="document.getElementById('opsTrainFilter').value='';renderOps()">초기화</button>
+</div>
+<div id="opsCountLabel" style="font-size:12px;color:var(--txt3);margin-bottom:8px;"></div>
+<div class="ops-table-wrap" id="opsTableWrap">
+  <table class="ops-table">
+    <thead><tr>
+      <th>날짜</th><th>편성</th><th>위치</th><th>현상</th><th>최종행로</th><th>조치내역</th><th>비고</th><th>주기검수</th><th>상태</th>
+    </tr></thead>
+    <tbody id="opsTableBody"></tbody>
+  </table>
+</div>
+<div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal('opsModal')">닫기</button></div>
+</div></div>
+<div class="modal" id="pwModal"><div class="modal-box" style="max-width:380px"><div class="modal-hd"><h2 id="pwModalTitle">🔒 관리자 로그인</h2><button class="x-btn" onclick="closeModal('pwModal')">×</button></div><div style="margin-bottom:12px;font-size:12px;color:var(--txt2)">관리자 비밀번호를 입력하세요.</div><div style="margin-bottom:6px;font-size:11px;color:var(--txt3);font-weight:600;">비밀번호</div><input id="pwInput" type="password" class="form-input" style="width:100%;margin-bottom:12px" placeholder="비밀번호" onkeydown="if(event.key==='Enter')submitPw()"><div id="pwError" style="color:#ef4444;font-size:11px;min-height:16px;margin-bottom:8px"></div><div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal('pwModal')">취소</button><button class="btn btn-primary" onclick="submitPw()">확인</button></div></div></div>
+<button id="fab" class="admin-only" onclick="openEvtInput()" style="position:fixed;bottom:20px;right:20px;z-index:100;background:var(--accent);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:22px;cursor:pointer;box-shadow:0 4px 14px rgba(59,130,246,.5);display:none;align-items:center;justify-content:center;" title="이벤트 등록">＋</button>
+
+<script>
+function formatList(txt){ if(!txt) return ""; const normalized = String(txt).replace(/\r\n|\r/g, "\n"); const lines = normalized.split("\n").map(l => l.trim()).filter(Boolean); if(lines.length <= 1) return txt; return `<ul class="det-list">${lines.map(l => `<li>${l}</li>`).join("")}</ul>`; }
+// '*'를 꼭지(항목) 시작점으로 보고 첫 번째 꼭지만 추출. 예) "* IR-TT 교환 * 카드 상대교환" -> "IR-TT 교환"
+function firstKkokji(txt){
+  if(!txt) return "";
+  const s = String(txt);
+  if(s.indexOf('*') === -1) return s.trim();
+  const parts = s.split('*').map(p => p.trim()).filter(Boolean);
+  return parts.length ? parts[0] : s.trim();
+}
+// '*'가 포함된 텍스트를 꼭지별로 줄바꿈된 리스트로 변환. '*' 없으면 원문 그대로(formatList의 줄바꿈 처리만 적용).
+function formatActionList(txt){
+  if(!txt) return "";
+  const s = String(txt);
+  if(s.indexOf('*') === -1) return formatList(s);
+  const parts = s.split('*').map(p => p.trim()).filter(Boolean);
+  if(parts.length <= 1) return formatList(s);
+  return `<ul class="det-list">${parts.map(p => `<li>${p}</li>`).join("")}</ul>`;
+}
+// 편성번호 표기 통일: KTX는 2자리(KTX01), SR은 3자리(SR001). 패턴이 안 맞으면 원문 그대로 둠.
+function normalizeTrainNo(raw){
+  if(!raw) return raw;
+  const s = String(raw).trim().toUpperCase().replace(/\s+/g,'');
+  const m = s.match(/^(KTX|SR)-?0*(\d+)$/);
+  if(!m) return String(raw).trim();
+  const prefix = m[1];
+  const num = m[2];
+  const width = prefix === 'SR' ? 3 : 2;
+  return prefix + num.padStart(width,'0');
+}
+'use strict';
+
+const INITIAL={
+  legend:[
+    {key:'rabbit',  name:'토끼뜀',   color:'#a855f7'}, // 보라색
+    {key:'auto',    name:'자동차단', color:'#ef4444'}, // 붉은색
+    {key:'auxblock',name:'보조블럭 차단', color:'#00ffff'}, // 형광 하늘색
+    {key:'warning', name:'중점관리대상',   color:'#eab308'},
+    {key:'normal',  name:'발생',     color:'#22c55e'},
+    {key:'complete',name:'주기검수', color:'#3b82f6'}, // 파란색
+    {key:'nodata',  name:'데이터없음',color:'#475569'}
+  ],
+  trains:[
+    ...Array.from({length:46},(_,i)=>`KTX${String(i+1).padStart(2,'0')}`),
+    ...Array.from({length:20},(_,i)=>`SR${String(i+1).padStart(3,'0')}`)
+  ],
+  locations:['PC1-MB1','PC1-MB2','PC1-MB3','PC1-AUXB','PC1-신호장치','PC1-기타','PC2-MB1','PC2-MB2','PC2-MB3','PC2-AUXB','PC2-신호장치','PC2-기타','TR01','TR02','TR03','TR04','TR05','TR06','TR07','TR08','TR09','TR10','TR11','TR12','TR13','TR14','TR15','TR16','TR17','TR18','기타'],
+  events:[]
+};
+
+// ── GitHub 연동 온라인 버전 ───────────────────────────────────
+// data.json을 같은 저장소(GitHub Pages)에서 fetch하여 모든 방문자가 동일 데이터를 봄.
+// 관리자가 엑셀 업로드 후 "GitHub에 게시"를 누르면 GitHub API로 data.json을 커밋.
+// ─────────────────────────────────────────────────────────────
+
+const GH_DATA_PATH = 'data.json'; // 저장소 루트의 데이터 파일
+let DB;
+// owner/repo/branch는 고정값으로 코드에 내장 — 모든 방문자가 설정 없이 항상 동일한 저장소의 data.json을 자동으로 읽어옵니다.
+// token은 절대 코드에 넣지 않습니다(공개 노출 위험) — 관리자가 게시할 때만 입력.
+let ghConfig = { owner:'ktx-elec', repo:'ktx', branch:'main', token:'' };
+let ghFileSha = null; // data.json 현재 커밋의 sha (업데이트 시 필요)
+
+function ghHeaders(){
+  return {
+    'Authorization': 'Bearer ' + ghConfig.token,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  };
+}
+
+function loadGhConfigFromSession(){
+  try{
+    const raw = sessionStorage.getItem('ghConfig');
+    if(raw) ghConfig = JSON.parse(raw);
+  }catch(e){}
+}
+function saveGhConfigToSession(){
+  try{ sessionStorage.setItem('ghConfig', JSON.stringify(ghConfig)); }catch(e){}
+}
+
+// 공개 data.json을 raw URL로 가져오기 (모든 방문자, 토큰 불필요)
+async function fetchPublicData(){
+  if(!ghConfig.owner || !ghConfig.repo) return null;
+  try{
+    const url = `https://raw.githubusercontent.com/${ghConfig.owner}/${ghConfig.repo}/${ghConfig.branch}/${GH_DATA_PATH}?t=${Date.now()}`;
+    const res = await fetch(url, {cache:'no-store'});
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){ console.warn('data.json 로드 실패:', e); return null; }
+}
+
+async function loadDB(){
+  loadGhConfigFromSession();
+  DB = JSON.parse(JSON.stringify(INITIAL));
+  const remote = await fetchPublicData();
+  if(remote){
+    DB = remote;
+  }
+  // complete(주기검수)는 항상 파란색 고정
+  const comp = DB.legend.find(l=>l.key==='complete');
+  if(comp){ comp.color='#3b82f6'; comp.name='주기검수'; }
+}
+
+async function saveDB(){
+  // 관리자가 명시적으로 "GitHub에 게시"를 누를 때만 publishToGithub()가 커밋함.
+  // saveDB()는 메모리상 DB만 유지(자동 커밋하지 않음 — API 호출 비용/충돌 방지).
+}
+
+// 관리자 전용: 현재 메모리상 DB를 GitHub data.json으로 커밋
+async function publishToGithub(){
+  if(!ghConfig.owner || !ghConfig.repo || !ghConfig.token){
+    alert('먼저 ⚙️ 시스템 설정 > GitHub 연동 탭에서 저장소 정보와 토큰을 입력하세요.');
+    return;
+  }
+  const apiUrl = `https://api.github.com/repos/${ghConfig.owner}/${ghConfig.repo}/contents/${GH_DATA_PATH}`;
+  try{
+    // 1) 현재 파일의 sha 조회 (없으면 신규 생성)
+    let sha = null;
+    const getRes = await fetch(apiUrl + `?ref=${ghConfig.branch}`, {headers: ghHeaders()});
+    if(getRes.ok){
+      const getJson = await getRes.json();
+      sha = getJson.sha;
+    } else if(getRes.status !== 404){
+      const errJson = await getRes.json().catch(()=>({}));
+      throw new Error(`조회 실패 (${getRes.status}): ${errJson.message||''}`);
+    }
+
+    const content = JSON.stringify(DB, null, 2);
+    const b64 = btoa(unescape(encodeURIComponent(content)));
+
+    const putRes = await fetch(apiUrl, {
+      method:'PUT',
+      headers: {...ghHeaders(), 'Content-Type':'application/json'},
+      body: JSON.stringify({
+        message: `데이터 업데이트 (${new Date().toISOString().slice(0,19).replace('T',' ')}) — 이벤트 ${DB.events.length}건`,
+        content: b64,
+        branch: ghConfig.branch,
+        ...(sha ? {sha} : {})
+      })
+    });
+    if(!putRes.ok){
+      const errJson = await putRes.json().catch(()=>({}));
+      throw new Error(`커밋 실패 (${putRes.status}): ${errJson.message||'알 수 없는 오류'}`);
+    }
+    return true;
+  }catch(e){
+    alert('GitHub 게시 중 오류가 발생했습니다.\n' + e.message);
+    return false;
+  }
+}
+
+let selTrain=null, isAdmin=false, csvRows=[];
+let fleetFilter='KTX';
+let expandedTrains=new Set();
+let allExpanded=false;
+
+function uid(){return 'e'+Date.now()+Math.random().toString(36).slice(2,6);}
+function todayStr(){return new Date().toISOString().split('T')[0];}
+function daysAgoStr(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().split('T')[0];}
+function fmtDate(d){const dt=new Date(d+'T00:00:00');const w=['일','월','화','수','목','금','토'][dt.getDay()];return `${String(dt.getFullYear()).slice(2)}.${String(dt.getMonth()+1).padStart(2,'0')}.${String(dt.getDate()).padStart(2,'0')} (${w})`;}
+function fmtShort(d){return d.slice(5).replace('-','.');}
+
+function dateRange(){
+  const s=new Date(document.getElementById('sDate').value+'T00:00:00');
+  const e=new Date(document.getElementById('eDate').value+'T00:00:00');
+  const arr=[];const c=new Date(s);
+  while(c<=e){arr.push(c.toISOString().split('T')[0]);c.setDate(c.getDate()+1);}
+  return arr;
+}
+function get14DayRange(){
+  const e=new Date(document.getElementById('eDate').value+'T00:00:00');
+  const s=new Date(e);s.setDate(s.getDate()-13);
+  const arr=[];const c=new Date(s);
+  while(c<=e){arr.push(c.toISOString().split('T')[0]);c.setDate(c.getDate()+1);}
+  return arr;
+}
+function getYearRange(){const y=new Date().getFullYear();return {start:`${y}-01-01`, end:`${y}-12-31`};}
+function legOf(key){return DB.legend.find(l=>l.key===key)||{name:key,color:'#475569'};}
+function colorOf(k){return legOf(k).color;}
+function nameOf(k){return legOf(k).name;}
+
+function initDates(){
+  const today=todayStr();
+  const ago14=daysAgoStr(13);
+  document.getElementById('eDate').value=today;
+  document.getElementById('sDate').value=ago14;
+  document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('pb14').classList.add('active');
+}
+
+function renderLegendBar(){
+  document.getElementById('legendBar').innerHTML=DB.legend.map(l=>`<span class="leg"><span class="sq" style="background:${l.color}"></span>${l.name}</span>`).join('');
+  const ss=document.getElementById('srchStatus');
+  ss.innerHTML='<option value="">상태 전체</option>'+DB.legend.map(l=>`<option value="${l.key}">${l.name}</option>`).join('');
+}
+
+function renderFilters(){
+  // 편성 드롭다운 제거됨 - 사용 안 함
+}
+
+function setFleetFilter(fleet){
+  fleetFilter=fleet;
+  document.getElementById('fleetKTX').classList.toggle('active',fleet==='KTX');
+  document.getElementById('fleetSR').classList.toggle('active',fleet==='SR');
+  expandedTrains.clear();allExpanded=false;updateExpandAllBtn();
+
+  renderFilters();render();
+}
+
+function toggleExpandAll(){
+  allExpanded=!allExpanded;
+  if(allExpanded){
+    const srchT = document.getElementById('srchTrain').value.trim();
+    let trains = DB.trains;
+    if (srchT) trains = DB.trains.filter(t => t.toLowerCase().includes(srchT.toLowerCase()));
+    else trains = DB.trains.filter(t=> {
+      const name = String(t || '').trim().toUpperCase();
+      const isSR = name.includes('SR');
+      return fleetFilter==='SR' ? isSR : !isSR;
+    });
+    trains=trains.filter(t=>getTrainSummary(t)!=='hidden');
+    trains.forEach(t=>expandedTrains.add(t));
+  }else{expandedTrains.clear();}
+  updateExpandAllBtn();renderHeatmap();
+}
+function updateExpandAllBtn(){const btn=document.getElementById('expandAllBtn');if(btn){btn.textContent=allExpanded?'전체접기 ▲':'전체보기 ▼';btn.classList.toggle('active',allExpanded);}}
+
+function getStatusForCell(train,date){
+  const srchS=document.getElementById('srchStatus').value;
+  const evts=DB.events.filter(e=>e.train===train&&e.date===date);
+  if(!evts.length) return null;
+  if(srchS&&!evts.find(e=>e.status===srchS)) return null;
+  const priority=['rabbit','auto','warning','normal','complete','nodata'];
+  for(const p of priority){if(evts.find(e=>e.status===p)) return p;}
+  return evts[0].status;
+}
+
+function getTrainSummary(train){
+  const srchT=document.getElementById('srchTrain').value.toLowerCase();
+  const srchL=document.getElementById('srchLoc').value.toLowerCase();
+  const srchC=document.getElementById('srchContent').value.toLowerCase();
+  const srchS=document.getElementById('srchStatus').value;
+  if(srchT&&!train.toLowerCase().includes(srchT)) return 'hidden';
+  let evts=DB.events.filter(e=>e.train===train);
+  if(srchL) evts=evts.filter(e=>e.loc.toLowerCase().includes(srchL));
+  if(srchC) evts=evts.filter(e=>e.content.toLowerCase().includes(srchC));
+  if(srchS) evts=evts.filter(e=>e.status===srchS);
+  if((srchL||srchC||srchS)&&!evts.length) return 'hidden';
+  return 'visible';
+}
+
+function get14DaySummary(train){
+  const last14=get14DayRange();
+  const evts=DB.events.filter(e=>e.train===train&&last14.includes(e.date));
+  if(!evts.length) return 'normal';
+  const priority=['rabbit','auto','warning','normal','complete'];
+  for(const p of priority){if(evts.find(e=>e.status===p)) return p;}
+  return 'normal';
+}
+
+function renderHeatmap(){
+  const dates=dateRange();
+  const srchT = document.getElementById('srchTrain').value.trim();
+  let trains = DB.trains;
+  if (srchT) trains = DB.trains.filter(t => t.toLowerCase().includes(srchT.toLowerCase()));
+  else trains = DB.trains.filter(t=> {
+    const name = String(t || '').trim().toUpperCase();
+    const isSR = name.includes('SR');
+    return fleetFilter==='SR' ? isSR : !isSR;
+  });
+  trains=trains.filter(t=>getTrainSummary(t)!=='hidden');
+  trains=trains.filter(t=>DB.events.some(e=>e.train===t));
+
+  // 고정 열 너비 (편성/요약 항상 동일) — 좁은 화면에서는 축소
+  const narrow = window.matchMedia('(max-width: 768px)').matches;
+  const TW = narrow ? 50 : 80, SW = narrow ? 44 : 80;
+  const fixedCols = TW + SW;
+  const availW = document.getElementById('heatmap-card').clientWidth || 900;
+  // 셀 너비 계산
+  // - 모바일(narrow): 화면 폭과 무관하게 "한 화면에 3일치"만 보이도록 셀을 크게 고정,
+  //   나머지 날짜는 가로 스크롤로 이동(아래 #heatmap-card의 overflow-x:auto가 처리)
+  // - 데스크톱: 기존처럼 14일 이하면 화면에 꽉 차게, 14일 초과는 14일 기준 고정 후 스크롤
+  let cellW;
+  if (narrow) {
+    const MOBILE_VISIBLE_DAYS = 3;
+    const visibleCols = Math.max(1, Math.min(dates.length, MOBILE_VISIBLE_DAYS));
+    cellW = Math.max(30, Math.floor((availW - fixedCols) / visibleCols));
+  } else {
+    const minCellW = 1;
+    const cellW14 = Math.max(minCellW, Math.floor((availW - fixedCols) / 14));
+    cellW = dates.length <= 14
+      ? Math.max(minCellW, Math.floor((availW - fixedCols) / dates.length))
+      : cellW14;
+  }
+  const tableW = Math.max(availW - 2, fixedCols + cellW * dates.length);
+
+  const thStyle = (w) => `style="width:${w}px;min-width:${w}px;max-width:${w}px;"`;
+  let hh = `<tr>
+    <th ${thStyle(TW)}>편성 / 위치</th>
+    <th ${thStyle(SW)}>요약(14일)</th>`;
+  dates.forEach(d => { hh += `<th ${thStyle(cellW)}>${fmtShort(d)}</th>`; });
+  hh += '</tr>';
+  document.querySelector('#heatmap-table thead').innerHTML = hh;
+
+  const tbl = document.getElementById('heatmap-table');
+  tbl.style.width = tableW + 'px';
+  tbl.style.minWidth = tableW + 'px';
+
+  const tdStyle = (w, extra='') => `style="width:${w}px;min-width:${w}px;max-width:${w}px;${extra}"`;
+  let bh = '';
+  trains.forEach(train => {
+    const summary = get14DaySummary(train);
+    const sc = colorOf(summary);
+    const sel = (train === selTrain) ? 'sel' : '';
+    const hasEvts = DB.events.filter(e => e.train === train).length > 0;
+    const isOpen = hasEvts && expandedTrains.has(train);
+    const arrow = isOpen ? '▲' : '▼';
+    const expandedClass = isOpen ? 'expanded' : '';
+    bh += `<tr class="hm-row ${sel} ${expandedClass}" data-train="${train}">`;
+    bh += `<td onclick="toggleAccordion('${train}')" ${tdStyle(TW)}>${train}${hasEvts ? `&nbsp;<span style="font-size:9px;color:var(--txt3)">${arrow}</span>` : ''}</td>`;
+    bh += `<td ${tdStyle(SW)}><span class="badge-sm" style="background:${sc};">${nameOf(summary)}</span></td>`;
+    dates.forEach(d => {
+      const st = getStatusForCell(train, d);
+      if(st) bh += `<td onclick="clickCell('${train}','${d}')" ${tdStyle(cellW,'cursor:pointer;')}><span class="cell-dot" style="background:${colorOf(st)}" title="${nameOf(st)} ${d}"></span></td>`;
+      else   bh += `<td onclick="clickCell('${train}','${d}')" ${tdStyle(cellW)}><span class="cell-dot empty" title="데이터없음"></span></td>`;
+    });
+    bh += '</tr>';
+    if(isOpen){
+      const tlRows = buildTimelineRows(train, dates, cellW, TW, SW);
+      if(tlRows){
+        bh += tlRows;
+      } else {
+        bh += `<tr class="tl-detail-row"><td colspan="2" ${tdStyle(TW+SW)} style="color:var(--txt3);font-size:11px;">선택 기간 내 이력 없음</td><td colspan="${dates.length}" style="color:var(--txt3);font-size:11px;text-align:left;padding-left:8px;">선택한 기간(${dates.length}일) 동안 발생한 이력이 없습니다.</td></tr>`;
+      }
+    }
+  });
+  document.querySelector('#heatmap-table tbody').innerHTML = bh;
+
+  // 항상 스크롤 맨 우측(최신일)으로
+  requestAnimationFrame(() => {
+    const card = document.getElementById('heatmap-card');
+    card.scrollLeft = card.scrollWidth;
+  });
+}
+
+function buildTimelineRows(train, dates, cellW, TW, SW){
+  TW = TW || 80; SW = SW || 80; cellW = cellW || 36;
+  const dateSet = new Set(dates);
+  const allEvts=DB.events.filter(e=>e.train===train && dateSet.has(e.date));
+  if(!allEvts.length) return '';
+  const completeEvts = allEvts.filter(e=>e.status==='complete');
+  const failEvts = allEvts.filter(e=>e.status!=='complete');
+  const locs = [...new Set(failEvts.map(e=>e.loc))];
+  const twS = `style="width:${TW}px;min-width:${TW}px;max-width:${TW}px;"`;
+  const swS = `style="width:${SW}px;min-width:${SW}px;max-width:${SW}px;"`;
+  const cwS = `style="width:${cellW}px;min-width:${cellW}px;max-width:${cellW}px;"`;
+  let rows='';
+
+  locs.forEach((loc)=>{
+    rows+=`<tr class="tl-detail-row">`;
+    rows+=`<td class="tl-loc-cell" ${twS}>${loc}</td><td class="tl-loc-cell" ${swS}></td>`;
+    dates.forEach(d=>{
+      const evts=failEvts.filter(e=>e.loc===loc&&e.date===d);
+      if(evts.length){
+        let cellHtml = '';
+        evts.forEach(e => {
+          const bg=colorOf(e.status)+'28';
+          
+          const isJubak = (e.route || "").includes("주박");
+          const isKiji = (e.route || "").includes("기지");
+          const isActionDone = (e.route || "").includes("조치완료") || nameOf(e.status).includes("조치완료");
+          const subStyle = isActionDone ? "color:#39ff14;font-weight:bold;" : isJubak ? "color:#FF0000;font-weight:bold;" : isKiji ? "color:#FFA500;font-weight:bold;" : "";
+          const ctStyle = (e.status === "complete") ? "color:#CC00FF;font-weight:bold;" : "";
+
+          cellHtml += `<div class="tl-evt-block" onclick="event.stopPropagation(); showEvtDetail('${e.id}')" style="background:${bg}; border-left: 3px solid ${colorOf(e.status)};">
+            <span class="ct-txt" style="${ctStyle}">${e.content}</span>
+            <span class="sub-txt" style="${subStyle}">${e.route || firstKkokji(e.action)}</span>
+          </div>`;
+        });
+        rows+=`<td class="tl-detail-cell" ${cwS} style="width:${cellW}px;min-width:${cellW}px;max-width:${cellW}px;padding:2px !important;">${cellHtml}</td>`;
+      }else rows+=`<td class="tl-empty-cell" ${cwS}>—</td>`;
+    });
+    rows+='</tr>';
+  });
+
+  if(completeEvts.length){
+    const mc=colorOf('complete');
+    const displayLoc = completeEvts[0].loc || '기타';
+    rows+=`<tr class="tl-detail-row tl-last-row"><td class="tl-loc-cell" ${twS}>${displayLoc}</td><td class="tl-loc-cell" ${swS}></td>`;
+    dates.forEach(d=>{
+      const evts=completeEvts.filter(e=>e.date===d);
+      if(evts.length){
+        let cellHtml = '';
+        evts.forEach(me => {
+          const bg=mc+'28';
+          const isJubak = me.content.includes('주박') || me.action.includes('주박') || me.loc.includes('주박');
+          const isKiji  = me.content.includes('기지') || me.action.includes('기지') || me.loc.includes('기지');
+          const subStyle = isJubak ? 'color:#eab308;font-weight:700;' : isKiji ? 'color:#22c55e;font-weight:700;' : '';
+          cellHtml += `<div class="tl-evt-block" onclick="event.stopPropagation(); showEvtDetail('${me.id}')" style="background:${bg}; border-left: 3px solid ${mc};">
+            <span class="ct-txt" style="color:${mc};">${me.content}</span>
+            <span class="sub-txt" style="${subStyle}">${firstKkokji(me.action)}</span>
+          </div>`;
+        });
+        rows+=`<td class="tl-detail-cell tl-last-cell" ${cwS} style="width:${cellW}px;min-width:${cellW}px;max-width:${cellW}px;padding:2px !important;">${cellHtml}</td>`;
+      }else rows+=`<td class="tl-empty-cell tl-last-cell" ${cwS}>—</td>`;
+    });
+    rows+='</tr>';
+  }
+  return rows;
+}
+
+function toggleAccordion(train){
+  if(DB.events.filter(e=>e.train===train).length===0) return;
+  if(expandedTrains.has(train)) expandedTrains.delete(train);
+  else {expandedTrains.add(train);selectTrain(train);}
+  allExpanded=false;updateExpandAllBtn();renderHeatmap();
+}
+function clickCell(train,date){
+  selectTrain(train);
+  // 해당 날짜의 이벤트 목록을 요약 패널에 강제로 보여주기 위해 필터링 상태 시뮬레이션
+  const evts = DB.events.filter(e=>e.train===train && e.date===date);
+  if(evts.length > 0) {
+    // 요약 패널(Summary)에 해당 날짜 이벤트만 표시되도록 임시 처리 (renderSummary 내 로직 활용)
+    renderSummary(evts);
+  }
+  if(DB.events.filter(e=>e.train===train).length>0 && !expandedTrains.has(train)){
+    expandedTrains.add(train);
+    allExpanded=false;
+    updateExpandAllBtn();
+    renderHeatmap();
+  }
+}
+function selectTrain(train){selTrain=train;renderSummary();renderHeatmap();openRightPanelMobile();}
+
+function isMobileView(){ return window.matchMedia('(max-width: 768px)').matches; }
+function openRightPanelMobile(){
+  if(!isMobileView()) return;
+  document.getElementById('right-panel').classList.add('show');
+  document.getElementById('rp-overlay').classList.add('show');
+}
+function closeRightPanelMobile(){
+  document.getElementById('right-panel').classList.remove('show');
+  document.getElementById('rp-overlay').classList.remove('show');
+}
+
+function renderSummary(forcedEvts){
+  if(!selTrain && !forcedEvts) return;
+  // 새로운 요약 리스트를 렌더링할 때 이전 상세 내역을 비움
+  document.getElementById('rp-detail').innerHTML = '<div class="empty-det">이벤트를 선택하면 상세 내역이 표시됩니다.</div>';
+  let evts = forcedEvts || DB.events.filter(e=>e.train===selTrain);
+  if (forcedEvts && forcedEvts.length > 0) selTrain = forcedEvts[0].train;
+  const summary=get14DaySummary(selTrain);
+  document.getElementById('rpName').textContent=selTrain;
+  const b=document.getElementById('rpBadge');b.textContent=nameOf(summary);b.style.background=colorOf(summary);
+  document.getElementById('rpEvtN').textContent=evts.length;
+  document.getElementById('rpFgiN').textContent=evts.filter(e=>e.status==='complete').length;
+  document.getElementById('rpFailN').textContent=evts.filter(e=>e.status!=='complete').length;
+  const recent=evts.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  document.getElementById('rpEvtList').innerHTML=recent.map(e=>
+    `<div class="rp-evt-item" onclick="showEvtDetail('${e.id}')">
+      <span class="d">${fmtShort(e.date)}</span>
+      <span class="eq">${e.loc}</span>
+      <span class="ct">${e.content}</span>
+      <span class="badge-sm" style="background:${colorOf(e.status)};color:#fff;font-size:9px">${nameOf(e.status)}</span>
+    </div>`
+  ).join('')||'<div class="empty-det">이벤트 없음</div>';
+}
+
+function showEvtDetail(id){
+  const e=DB.events.find(x=>x.id===id);if(!e) return;
+  openRightPanelMobile();
+  // 다른 편성의 고장을 클릭한 경우, 선택된 편성을 해당 이벤트의 편성으로 이동시켜 상단 요약칸/편성줄 하이라이트를 동기화
+  if(e.train !== selTrain){
+    selTrain = e.train;
+    renderSummary();
+    renderHeatmap();
+  }
+  let h=`<div class="det-title"><span class="badge-sm" style="background:${colorOf(e.status)};margin-right:6px">${nameOf(e.status)}</span>${e.loc} — ${e.content}${isAdmin?`<button class="btn btn-ghost" style="float:right;padding:3px 8px;font-size:11px" onclick="editEvt('${e.id}')">✏️ 수정</button>`:''}</div>`;
+  h+=`<div class="det-row"><div class="det-k">발생일</div><div class="det-v">${fmtDate(e.date)}</div></div>`;
+  h+=`<div class="det-row"><div class="det-k">편성</div><div class="det-v">${e.train}</div></div>`;
+  h+=`<div class="det-row"><div class="det-k">발생위치</div><div class="det-v">${e.loc}</div></div>`;
+  if(e.route) h+=`<div class="det-row"><div class="det-k">최종행로</div><div class="det-v">${formatActionList(e.route)}</div></div>`;
+  h+=`<div class="det-row"><div class="det-k">조치내역</div><div class="det-v">${formatActionList(e.action)}</div></div>`;
+  if(e.checks) h+=`<div class="det-row"><div class="det-k">주기검수</div><div class="det-v">${formatList(e.checks)}</div></div>`;
+  if(e.note) h+=`<div class="det-row"><div class="det-k">비고</div><div class="det-v">${e.note}</div></div>`;
+  document.getElementById('rp-detail').innerHTML=h;
+}
+
+function openEvtInput(){
+  const today=todayStr();
+  document.getElementById('evtModalTitle').textContent='이벤트 등록';
+  document.getElementById('fEditId').value='';document.getElementById('fDelBtn').style.display='none';
+  document.getElementById('fTrain').innerHTML=DB.trains.map(t=>`<option ${t===selTrain?'selected':''}>${t}</option>`).join('');
+  document.getElementById('fLoc').innerHTML=DB.locations.map(l=>`<option>${l}</option>`).join('');
+  document.getElementById('fStatus').innerHTML=DB.legend.filter(l=>l.key!=='nodata').map(l=>`<option value="${l.key}">${l.name}</option>`).join('');
+  document.getElementById('fDate').value=today;document.getElementById('fContent').value='';document.getElementById('fAction').value='';document.getElementById('fChecks').value='';document.getElementById('fNote').value='';
+  openModal('evtModal');
+}
+function editEvt(id){
+  const e=DB.events.find(x=>x.id===id);if(!e) return;
+  document.getElementById('evtModalTitle').textContent='이벤트 수정';document.getElementById('fEditId').value=id;document.getElementById('fDelBtn').style.display='';
+  document.getElementById('fTrain').innerHTML=DB.trains.map(t=>`<option ${t===e.train?'selected':''}>${t}</option>`).join('');
+  document.getElementById('fLoc').innerHTML=DB.locations.map(l=>`<option ${l===e.loc?'selected':''}>${l}</option>`).join('');
+  document.getElementById('fStatus').innerHTML=DB.legend.filter(l=>l.key!=='nodata').map(l=>`<option value="${l.key}" ${l.key===e.status?'selected':''}>${l.name}</option>`).join('');
+  document.getElementById('fDate').value=e.date;document.getElementById('fContent').value=e.content;document.getElementById('fAction').value=e.action;document.getElementById('fChecks').value=(e.checks||[]).join('\n');document.getElementById('fNote').value=e.note||'';
+  openModal('evtModal');
+}
+async function saveEvt(){
+  const id=document.getElementById('fEditId').value;
+  const e={id:id||uid(),train:document.getElementById('fTrain').value,loc:document.getElementById('fLoc').value,date:document.getElementById('fDate').value,status:document.getElementById('fStatus').value,content:document.getElementById('fContent').value.trim(),action:document.getElementById('fAction').value.trim(),checks:document.getElementById('fChecks').value.split('\n').map(s=>s.trim()).filter(Boolean),judge:[],note:document.getElementById('fNote').value.trim()};
+  if(!e.content||!e.action){alert('현상과 조치내역을 입력하세요.');return;}
+  if(id){const i=DB.events.findIndex(x=>x.id===id);if(i>=0)DB.events[i]=e;}
+  else DB.events.push(e);
+  await saveDB();render();closeModal('evtModal');
+  await maybePublish(id?'이벤트가 수정되었습니다.':'이벤트가 등록되었습니다.');
+}
+async function deleteEvt(){const id=document.getElementById('fEditId').value;if(!id||!confirm('삭제하시겠습니까?')) return;DB.events=DB.events.filter(e=>e.id!==id);await saveDB();render();closeModal('evtModal');document.getElementById('rp-detail').innerHTML='<div class="empty-det">이벤트를 클릭하면 상세가 표시됩니다</div>';await maybePublish('이벤트가 삭제되었습니다.');}
+
+
+const ADMIN_PW='ktx2026!';
+function handleAdminBtn(){if(isAdmin) logoutAdmin();else {document.getElementById('pwInput').value='';document.getElementById('pwError').textContent='';openModal('pwModal');setTimeout(()=>document.getElementById('pwInput').focus(),100);}}
+function submitPw(){const pw=document.getElementById('pwInput').value;if(pw===ADMIN_PW){loginAdmin();closeModal('pwModal');}else document.getElementById('pwError').textContent='비밀번호가 올바르지 않습니다.';}
+function loginAdmin(){isAdmin=true;document.querySelectorAll('.admin-only').forEach(el=>{el.style.removeProperty('display');el.classList.remove('admin-only');el.classList.add('admin-shown');});document.getElementById('fab').style.display='flex';render();}
+function logoutAdmin(){if(!confirm('관리자 모드를 종료하시겠습니까?')) return;isAdmin=false;document.querySelectorAll('.admin-shown').forEach(el=>{el.classList.remove('admin-shown');el.classList.add('admin-only');});document.getElementById('fab').style.display='none';render();}
+
+function openAdmTabs(){const tabs=[{id:'legend',name:'범례 관리'},{id:'data',name:'데이터 관리'},{id:'trains',name:'편성 관리'},{id:'locs',name:'고장위치 관리'},{id:'github',name:'GitHub 연동'}];document.getElementById('admTabs').innerHTML=tabs.map((t,i)=>`<button class="adm-tab ${i===0?'on':''}" onclick="switchAdmTab('${t.id}',this)">${t.name}</button>`).join('');renderLegendAdm();renderTrainAdm();renderLocAdm();fillGhConfigForm();}function renderLegendAdm(){
+  document.getElementById('legendAdmList').innerHTML=DB.legend.map((l,i)=>{
+    const isFixed = ['nodata','complete'].includes(l.key);
+    return `
+    <div class="adm-list-item" style="gap:5px;">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <button class="btn btn-ghost" style="padding:2px;font-size:8px;height:14px;line-height:1;" onclick="moveLegend(${i},-1)">▲</button>
+        <button class="btn btn-ghost" style="padding:2px;font-size:8px;height:14px;line-height:1;" onclick="moveLegend(${i},1)">▼</button>
+      </div>
+      <input type="text" value="${l.name}" placeholder="상태명" style="flex:1.5" data-field="name" ${isFixed?'disabled':''}>
+      <input type="color" value="${l.color}" style="width:35px;padding:2px;height:28px;" data-field="color" ${isFixed?'disabled':''}>
+      <input type="text" value="${l.key}" placeholder="Key" style="flex:1" data-field="key" disabled>
+      ${isFixed?`<span style="font-size:10px;color:var(--txt3);min-width:44px;text-align:center;">고정</span>`:`<button class="btn btn-danger" style="padding:4px 8px;font-size:11px" onclick="delLegendItem(${i})">삭제</button>`}
+    </div>`;
+  }).join('');
+}
+function moveLegend(i, dir){
+  const target = i + dir;
+  if(target < 0 || target >= DB.legend.length) return;
+  const temp = DB.legend[i];
+  DB.legend[i] = DB.legend[target];
+  DB.legend[target] = temp;
+  renderLegendAdm();
+}
+function addLegendItem(){DB.legend.push({key:'new_'+Date.now(),name:'신규상태',color:'#3b82f6'});renderLegendAdm();}
+function delLegendItem(i){if(['nodata','complete'].includes(DB.legend[i].key)){alert('이 범례는 삭제할 수 없습니다.');return;}if(!confirm('이 범례를 삭제하시겠습니까?')) return;DB.legend.splice(i,1);renderLegendAdm();}
+async function saveLegendAdm(){
+  const arr=[];
+  const items=document.querySelectorAll('#legendAdmList .adm-list-item');
+  items.forEach((item, idx)=>{
+    const inputs=item.querySelectorAll('input');
+    const oldKey=DB.legend[idx]?.key;
+    const isFixed = ['nodata','complete'].includes(oldKey);
+    // 고정 항목은 기존 값 그대로 유지
+    if(isFixed){
+      arr.push({...DB.legend[idx]});
+    } else {
+      const newKey=inputs[2].value.trim();
+      arr.push({name:inputs[0].value.trim(),color:inputs[1].value,key:newKey});
+      if(oldKey && oldKey !== newKey){
+        DB.events.forEach(e=>{if(e.status===oldKey) e.status=newKey;});
+      }
+    }
+  });
+  DB.legend=arr;await saveDB();render();closeModal('admModal');await maybePublish('범례 설정이 저장되었습니다.');
+}
+function fillGhConfigForm(){
+  document.getElementById('ghOwner').value = ghConfig.owner || '';
+  document.getElementById('ghRepo').value = ghConfig.repo || '';
+  document.getElementById('ghBranch').value = ghConfig.branch || 'main';
+  document.getElementById('ghToken').value = ghConfig.token || '';
+}
+function readGhConfigForm(){
+  return {
+    owner: document.getElementById('ghOwner').value.trim(),
+    repo: document.getElementById('ghRepo').value.trim(),
+    branch: document.getElementById('ghBranch').value.trim() || 'main',
+    token: document.getElementById('ghToken').value.trim()
+  };
+}
+function saveGhConfigAdm(){
+  ghConfig = readGhConfigForm();
+  if(!ghConfig.owner || !ghConfig.repo){ alert('저장소 소유자와 이름을 입력하세요.'); return; }
+  saveGhConfigToSession();
+  alert('GitHub 연동 설정이 저장되었습니다. (이 브라우저 세션 동안 유지)');
+}
+// 로컬 변경 후 GitHub 게시 여부를 일관되게 확인하는 공통 헬퍼
+async function maybePublish(actionLabel){
+  if(ghConfig.owner && ghConfig.repo && ghConfig.token){
+    if(confirm(`${actionLabel}\n\nGitHub에 게시하여 사이트에 반영하시겠습니까?`)){
+      const ok = await publishToGithub();
+      if(ok) alert('✅ GitHub에 게시되었습니다.');
+    }
+  } else {
+    alert(`${actionLabel}\n\n⚠️ GitHub 연동이 설정되어 있지 않아 사이트에는 반영되지 않습니다.\n(이 변경은 현재 브라우저에서만 유지되며 새로고침 시 사라집니다)`);
+  }
+}
+
+// 데이터 모달의 "GitHub에 게시" 버튼: 가져오기 절차 없이 현재 DB 상태를 바로 게시
+async function manualPublishClick(){
+  if(!ghConfig.owner || !ghConfig.repo || !ghConfig.token){
+    alert('먼저 ⚙️ 시스템 설정 > GitHub 연동 탭에서 저장소 정보와 토큰을 입력하세요.');
+    return;
+  }
+  if(!confirm(`현재 데이터(이벤트 ${DB.events.length}건)를 GitHub에 게시하시겠습니까?`)) return;
+  const ok = await publishToGithub();
+  if(ok) alert('✅ GitHub에 게시되었습니다. 잠시 후 사이트에 반영됩니다.');
+}
+
+async function testGhConnection(){
+  const cfg = readGhConfigForm();
+  if(!cfg.owner || !cfg.repo || !cfg.token){ alert('저장소 소유자, 이름, 토큰을 모두 입력하세요.'); return; }
+  try{
+    const res = await fetch(`https://api.github.com/repos/${cfg.owner}/${cfg.repo}`, {
+      headers: { 'Authorization':'Bearer '+cfg.token, 'Accept':'application/vnd.github+json' }
+    });
+    if(res.status===200){
+      const j = await res.json();
+      alert(`✅ 연결 성공!\n저장소: ${j.full_name}\n${j.private?'(비공개 저장소)':'(공개 저장소)'}`);
+    } else if(res.status===404){
+      alert('❌ 저장소를 찾을 수 없습니다. 소유자/이름 또는 토큰 권한을 확인하세요.');
+    } else if(res.status===401){
+      alert('❌ 토큰이 유효하지 않습니다.');
+    } else {
+      const j = await res.json().catch(()=>({}));
+      alert(`❌ 연결 실패 (${res.status}): ${j.message||''}`);
+    }
+  }catch(e){ alert('❌ 연결 테스트 중 오류: ' + e.message); }
+}
+function switchAdmTab(id,btn){document.querySelectorAll('.adm-tab').forEach(b=>b.classList.remove('on'));document.querySelectorAll('.adm-content').forEach(c=>c.classList.remove('show'));btn.classList.add('on');document.getElementById('adm-'+id).classList.add('show');}
+function renderTrainAdm(){document.getElementById('trainAdmList').innerHTML=DB.trains.map((t,i)=>`<div class="adm-list-item"><input type="text" value="${t}" data-i="${i}"><button class="btn btn-danger" style="padding:4px 8px;font-size:11px" onclick="delTrainItem(${i})">삭제</button></div>`).join('');}
+function addTrainItem(){DB.trains.push('KTX00');renderTrainAdm();}
+function delTrainItem(i){DB.trains.splice(i,1);renderTrainAdm();}
+function saveTrainAdm(){const arr=[];document.querySelectorAll('#trainAdmList .adm-list-item input').forEach(inp=>arr.push(inp.value));DB.trains=arr;saveDB().then(()=>{renderFilters();render();closeModal('admModal');maybePublish('편성 목록이 저장되었습니다.');});}
+function renderLocAdm(){document.getElementById('locAdmList').innerHTML=DB.locations.map((l,i)=>`<div class="adm-list-item"><input type="text" value="${l}" data-i="${i}"><button class="btn btn-danger" style="padding:4px 8px;font-size:11px" onclick="delLocItem(${i})">삭제</button></div>`).join('');}
+function addLocItem(){DB.locations.push('새위치');renderLocAdm();}
+function delLocItem(i){DB.locations.splice(i,1);renderLocAdm();}
+function saveLocAdm(){const arr=[];document.querySelectorAll('#locAdmList .adm-list-item input').forEach(inp=>arr.push(inp.value));DB.locations=arr;saveDB().then(()=>{closeModal('admModal');maybePublish('고장위치 목록이 저장되었습니다.');});}
+async function resetAllEvents(){if(!confirm('⚠️ 모든 이벤트 데이터를 삭제합니다.\n이 작업은 되돌릴 수 없습니다.\n\n계속하시겠습니까?')) return;if(!confirm('정말로 삭제하시겠습니까? 삭제 후 복구 불가합니다.')) return;DB.events=[];await saveDB();render();closeModal('admModal');await maybePublish('모든 이벤트 데이터가 초기화되었습니다.');}
+
+function handleDrop(e){e.preventDefault();document.getElementById('dropArea').classList.remove('drag');const f=e.dataTransfer.files[0];if(f) handleCSVFile(f);}
+function handleCSVFile(f){
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, {type: 'array', cellDates: true});
+
+    let opsRows = [];   // 차량운행현황 시트에서 추출된 이벤트
+    let checkRows = []; // 주기검수 시트에서 추출된 이벤트
+
+    workbook.SheetNames.forEach(sheetName => {
+      const sheet = workbook.Sheets[sheetName];
+      const allRows = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ""});
+      let headerIdx = -1;
+      for(let i=0; i<allRows.length; i++){
+        if(allRows[i].includes('날짜')){ headerIdx = i; break; }
+      }
+      if(headerIdx === -1) return; // 이 시트는 인식 불가, 건너뜀
+      const headers = allRows[headerIdx];
+      const dataRows = allRows.slice(headerIdx + 1);
+
+      const isCheckSheet = headers.includes('검종') && headers.includes('편성');
+
+      if(isCheckSheet){
+        // ── 주기검수 시트: 편성 + 검종이 모두 입력된 행만 이벤트로 변환 ──
+        const idxDate = headers.indexOf('날짜');
+        const idxTrain = headers.indexOf('편성');
+        const idxCheck = headers.indexOf('검종');
+        dataRows.forEach(row => {
+          const trainVal = String(row[idxTrain] || "").trim();
+          const checkVal = String(row[idxCheck] || "").trim();
+          if(!trainVal || !checkVal) return; // 둘 다 입력된 행만 사용
+          let rawDate = row[idxDate];
+          let dateStr = "";
+          if(rawDate instanceof Date) dateStr = rawDate.toISOString().split('T')[0];
+          else if(typeof rawDate === 'string') dateStr = rawDate.split(' ')[0];
+          else dateStr = String(rawDate || "").trim();
+          if(!dateStr) return;
+          checkRows.push({
+            id: uid(), train: normalizeTrainNo(trainVal), loc: '', date: dateStr,
+            content: checkVal, route: '', action: '', checks: checkVal, judge: [], note: '', status: 'complete'
+          });
+        });
+        return;
+      }
+
+      // ── 차량운행현황 시트(기존 로직) ──
+      if(!headers.includes('운행 중 고장 및 기술지원(임시조치) 내용')) return; // 양식 불일치 시트는 건너뜀
+      dataRows.forEach(row => {
+        const getVal = (key) => {
+          const idx = headers.indexOf(key);
+          return idx > -1 ? String(row[idx] || "").trim() : "";
+        };
+        // 헤더에 같은 이름의 컬럼이 여러 개 있을 때(예: '위치'가 2번 나오는 양식) 마지막 컬럼 값을 사용
+        const getValLast = (key) => {
+          let idx = -1;
+          for(let i=0;i<headers.length;i++){ if(headers[i]===key) idx = i; }
+          return idx > -1 ? String(row[idx] || "").trim() : "";
+        };
+        let rawDate = row[headers.indexOf('날짜')];
+        let dateStr = "";
+        if(rawDate instanceof Date) {
+          dateStr = rawDate.toISOString().split('T')[0];
+        } else if(typeof rawDate === 'string') {
+          dateStr = rawDate.split(' ')[0];
+        } else {
+          dateStr = String(rawDate || "").trim();
+        }
+        let contentRaw = getVal('운행 중 고장 및 기술지원(임시조치) 내용').replace(/^\*\s*/, "");
+        const checksRaw = getVal('주기검수');
+        const trainRaw = normalizeTrainNo(getVal('차호'));
+        const locRaw = getValLast('위치');
+        const routeRaw = getVal('최종행로');
+        const actionRaw = getVal('조치내역');
+        const noteRaw = getVal('비고');
+        const statusRaw = getVal('상태');
+        let statusKey = '';
+        if(contentRaw.includes('토끼뜀')) statusKey = 'rabbit';
+        else if(contentRaw.includes('자동차단') || contentRaw.includes('수동차단')) statusKey = 'auto';
+        else if(contentRaw.includes('보조블럭')) statusKey = 'auxblock';
+        else if(checksRaw && checksRaw !== '—' && checksRaw !== '-') statusKey = 'complete';
+        else {
+          const stMap={'토끼뜀':'rabbit','자동차단':'auto','요주의':'warning','중점관리':'warning','중점관리대상':'warning','정상':'normal','조치완료':'normal','주기검수':'complete'};
+          statusKey = stMap[statusRaw] || 'normal';
+        }
+        if(!trainRaw || !dateStr) return;
+        opsRows.push({
+          id: uid(), train: trainRaw, loc: locRaw, date: dateStr, content: contentRaw,
+          route: routeRaw, action: actionRaw, checks: checksRaw, judge: [], note: noteRaw, status: statusKey
+        });
+      });
+    });
+
+    csvRows = [...opsRows, ...checkRows];
+
+    if(!csvRows.length){ alert('엑셀 파일에서 인식 가능한 데이터를 찾을 수 없습니다.\n("날짜" 컬럼이 있는 시트가 필요합니다)'); return; }
+
+    let ph = `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:10px;"><thead><tr><th>날짜</th><th>차호</th><th>위치</th><th>현상</th></tr></thead><tbody>`;
+    csvRows.slice(0,5).forEach(r => {
+      ph += `<tr><td>${r.date}</td><td>${r.train}</td><td>${r.loc}</td><td>${r.content.substring(0,15)}...</td></tr>`;
+    });
+    ph += `</tbody></table><p style="margin-top:5px;font-size:12px;">총 ${csvRows.length}건 분석됨 (차량운행현황 ${opsRows.length}건 + 주기검수 ${checkRows.length}건)</p>`;
+    document.getElementById('csvPreview').innerHTML = `<div style="margin-bottom:6px;font-size:12px;color:var(--txt2);font-weight:bold;">미리보기 (최대 5행)</div>` + ph;
+    document.getElementById('csvImportBtn').style.display = '';
+    document.getElementById('csvOptRow').style.display = 'flex';
+  };
+  reader.readAsArrayBuffer(f);
+}
+
+async function importCSV(){
+  const replaceAll=document.getElementById('csvReplaceAll').checked;
+  if(replaceAll){
+    if(!confirm(`기존 데이터 ${DB.events.length}건을 전체 삭제하고 데이터 ${csvRows.length}건을 등록합니다.`)) return;
+    DB.events=[];
+    DB.trains=[];
+  }
+  csvRows.forEach(row => {
+    if(row.train && !DB.trains.includes(row.train)) DB.trains.push(row.train);
+  });
+  DB.trains.sort((a,b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+  DB.events.push(...csvRows);
+  render();closeModal('csvModal');
+  const cnt = csvRows.length;
+  csvRows=[];
+  document.getElementById('csvReplaceAll').checked=false;
+  document.getElementById('csvOptRow').style.display='none';
+  document.getElementById('csvImportBtn').style.display='none';
+  document.getElementById('csvPreview').innerHTML='';
+  if(ghConfig.owner && ghConfig.repo && ghConfig.token){
+    if(confirm(`${cnt}건 로드 완료!\n\nGitHub에 게시하여 사이트에 즉시 반영하시겠습니까?\n(게시하지 않으면 새로고침 시 변경사항이 사라집니다)`)){
+      const ok = await publishToGithub();
+      if(ok) alert('✅ GitHub에 게시되었습니다. 잠시 후(보통 1분 이내) 사이트에 반영됩니다.');
+    }
+  } else if(confirm(`${cnt}건 로드 완료!\n\nGitHub 연동이 설정되어 있지 않습니다.\n지금 바로 HTML 파일로 저장하시겠습니까?\n(저장하지 않으면 새로고침 시 데이터가 사라집니다)`)){
+    exportOfflineHTML();
+  }
+}
+function exportCSV(){
+  const ws = XLSX.utils.json_to_sheet(DB.events);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Events");
+  XLSX.writeFile(wb, "정비이력_내보내기.xlsx");
+}
+
+/* 통계 시스템 (연간/월간/주간) */
+let statFleet = 'KTX';
+let opsFleet = 'KTX';
+function setOpsFleet(fleet){
+  opsFleet = fleet;
+  document.getElementById('opsKTX').classList.toggle('active', fleet==='KTX');
+  document.getElementById('opsSR').classList.toggle('active', fleet==='SR');
+  renderOps();
+}
+function renderOps(){
+  const isSR = t => String(t||'').toUpperCase().includes('SR');
+  const isActionDoneEvt = e => (e.route||'').includes('조치완료') || (nameOf(e.status)||'').includes('조치완료');
+  const trainFilter = (document.getElementById('opsTrainFilter')?.value||'').trim().toLowerCase();
+  let evts = DB.events.filter(e => opsFleet==='SR' ? isSR(e.train) : !isSR(e.train));
+  if(trainFilter) evts = evts.filter(e => String(e.train||'').toLowerCase().includes(trainFilter));
+  evts = evts.slice().sort((a,b)=>
+    a.date.localeCompare(b.date) ||
+    String(a.train).localeCompare(String(b.train),undefined,{numeric:true})
+  );
+  document.getElementById('opsCountLabel').textContent = `${opsFleet} 차량운행현황 — 총 ${evts.length}건`;
+  const body = document.getElementById('opsTableBody');
+  if(!evts.length){
+    body.innerHTML = `<tr><td colspan="9"><div class="ops-empty">표시할 데이터가 없습니다.</div></td></tr>`;
+    return;
+  }
+  body.innerHTML = evts.map(e => {
+    const routeTxt = e.route||'';
+    const isActionDone = isActionDoneEvt(e);
+    const statusCell = isActionDone
+      ? `<span class="ops-badge" style="background:#52525b">조치완료</span>`
+      : `<span class="ops-badge" style="background:${colorOf(e.status)}">${nameOf(e.status)}</span>`;
+    const noteTxt = e.note||'';
+    const isWarnNote = noteTxt.includes('중점관리');
+    const noteCell = isWarnNote
+      ? `<span style="color:#f97316;font-weight:700;">${formatActionList(noteTxt)}</span>`
+      : formatActionList(noteTxt);
+    return `
+    <tr onclick="showEvtDetail('${e.id}')" style="cursor:pointer;">
+      <td class="ops-date">${fmtDate(e.date)}</td>
+      <td class="ops-train">${e.train}</td>
+      <td class="ops-left">${e.loc||''}</td>
+      <td class="ops-left">${formatActionList(e.content||'')}</td>
+      <td>${formatActionList(routeTxt)}</td>
+      <td class="ops-left">${formatActionList(e.action||'')}</td>
+      <td class="ops-left">${noteCell}</td>
+      <td>${Array.isArray(e.checks)?e.checks.join(', '):(e.checks||'')}</td>
+      <td>${statusCell}</td>
+    </tr>
+  `;
+  }).join('');
+}
+let statTab   = 'year';
+
+function setStatFleet(fleet){
+  statFleet = fleet;
+  document.getElementById('statKTX').classList.toggle('active', fleet==='KTX');
+  document.getElementById('statSR').classList.toggle('active', fleet==='SR');
+  renderStat();
+}
+function setStatTab(tab){
+  statTab = tab;
+  ['year','month','week'].forEach(t=>{
+    document.getElementById('stab-'+t).classList.toggle('active', t===tab);
+  });
+  const wc = document.getElementById('weekRangeCtrl');
+  wc.style.display = tab==='week' ? 'flex' : 'none';
+  renderStat();
+}
+
+/* 공통 필터 헬퍼 */
+function statEvts(start, end){
+  const isSR = t => String(t||'').trim().toUpperCase().includes('SR');
+  return DB.events.filter(e =>
+    e.date >= start && e.date <= end &&
+    e.status !== 'complete' &&
+    (statFleet==='SR' ? isSR(e.train) : !isSR(e.train))
+  );
+}
+const isAutoCut  = e => e.content.includes('자동차단') || e.content.includes('수동차단');
+const isAuxBlock = e => e.content.includes('보조블럭 차단');
+
+/* ── 카드 빌더 공통 ── */
+function buildSummaryCard(evts, title){
+  const rabbitColor = colorOf('rabbit');
+  const autoColor   = colorOf('auto');
+  const auxColor    = colorOf('auxblock');
+  return `<div class="stat-card"><h3>${title}</h3>
+    <div class="stat-bar-row"><div class="lbl">총 고장건수</div><div class="cnt" style="font-size:16px;font-weight:700">${evts.length}</div></div>
+    ${statFleet==='KTX'?`<div class="stat-bar-row"><div class="lbl">토끼뜀</div><div class="cnt" style="color:${rabbitColor};font-weight:700">${evts.filter(e=>e.status==='rabbit'||e.content.includes('토끼뜀')).length}</div></div>`:''}
+    <div class="stat-bar-row"><div class="lbl">자동/수동차단</div><div class="cnt" style="color:${autoColor};font-weight:700">${evts.filter(isAutoCut).length}</div></div>
+    <div class="stat-bar-row"><div class="lbl">보조블럭 차단</div><div class="cnt" style="color:${auxColor};font-weight:700">${evts.filter(isAuxBlock).length}</div></div>
+    <div class="stat-bar-row"><div class="lbl">중점관리대상</div><div class="cnt" style="color:${colorOf('warning')};font-weight:700">${evts.filter(e=>e.status==='warning').length}</div></div>
+  </div>`;
+}
+function buildRepeatCard(evts){
+  const repeatMap={};
+  evts.forEach(e=>{const k=`${e.train}||${e.content}`; repeatMap[k]=(repeatMap[k]||0)+1;});
+  const top=Object.entries(repeatMap).filter(([,n])=>n>=2).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  return `<div class="stat-card"><h3>🔁 반복 고장 TOP 6</h3>
+    ${top.length?top.map(([k,n])=>{const [t,c]=k.split('||');return `<div class="stat-bar-row" style="flex-direction:column;align-items:flex-start;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);"><div style="display:flex;width:100%;align-items:center;gap:6px;"><span style="font-size:11px;font-weight:700;color:var(--txt)">${t}</span><span style="margin-left:auto;font-size:13px;font-weight:700;color:#ef4444;">${n}회</span></div><div style="font-size:10px;color:var(--txt3);margin-top:2px;">${c}</div></div>`;}).join(''):'<div style="color:var(--txt3);font-size:11px;padding:8px 0;">반복 고장 없음</div>'}
+  </div>`;
+}
+function buildTopCard(evts, filterFn, color, title){
+  const map={};
+  evts.filter(filterFn).forEach(e=>{
+    const pc = e.loc.startsWith('PC1')?'PC1':(e.loc.startsWith('PC2')?'PC2':'기타');
+    const k=`${e.train} (${pc})`; map[k]=(map[k]||0)+1;
+  });
+  const top=Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const mx=top[0]?.[1]||1;
+  return `<div class="stat-card"><h3>${title}</h3>
+    ${top.length?top.map(([k,n])=>`<div class="stat-bar-row"><div class="lbl">${k}</div><div class="stat-bar"><div class="stat-bar-fill" style="width:${100*n/mx}%;background:${color}"></div></div><div class="cnt">${n}</div></div>`).join(''):'<div style="color:var(--txt3);font-size:11px;padding:8px 0;">해당 없음</div>'}
+  </div>`;
+}
+function buildRabbitCard(evts){
+  const list=evts.filter(e=>e.status==='rabbit'||e.content.includes('토끼뜀')).sort((a,b)=>b.date.localeCompare(a.date));
+  return `<div class="stat-card"><h3>🐇 토끼뜀 현황 목록</h3>
+    ${list.length?`<div class="rabbit-list"><div style="display:flex;gap:6px;font-size:10px;color:var(--txt3);padding:2px 0;border-bottom:1px solid var(--border);margin-bottom:4px;"><span style="min-width:60px;font-weight:700;">연월일</span><span style="min-width:50px;font-weight:700;">편성</span><span style="flex:1;font-weight:700;">위치</span></div>${list.map(e=>`<div class="rabbit-item"><span style="min-width:60px;color:var(--txt2)">${e.date.slice(2).replace(/-/g,'.')}</span><span class="ri-train" style="min-width:50px">${e.train}</span><span class="ri-loc">${e.loc}</span></div>`).join('')}</div>`:'<div style="color:var(--txt3);font-size:11px;padding:8px 0;">해당 없음</div>'}
+  </div>`;
+}
+
+/* ── 월간 전용 ── */
+function buildMonthlyCards(y){
+  const months=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  const autoColor=colorOf('auto'), auxColor=colorOf('auxblock'), rabbitColor=colorOf('rabbit');
+
+  // 월별 건수 집계
+  const mData = months.map((_,i)=>{
+    const mm=String(i+1).padStart(2,'0');
+    const evts=statEvts(`${y}-${mm}-01`,`${y}-${mm}-31`);
+    return {
+      total: evts.length,
+      auto:  evts.filter(isAutoCut).length,
+      aux:   evts.filter(isAuxBlock).length,
+      rabbit:evts.filter(e=>e.status==='rabbit'||e.content.includes('토끼뜀')).length,
+      warning:evts.filter(e=>e.status==='warning').length,
+    };
+  });
+  const maxTotal = Math.max(...mData.map(d=>d.total), 1);
+  const maxAuto  = Math.max(...mData.map(d=>d.auto),  1);
+  const maxAux   = Math.max(...mData.map(d=>d.aux),   1);
+
+  const barCard = (title, key, color, maxV) => `<div class="stat-card"><h3>${title}</h3>
+    <div class="month-bar-wrap">${mData.map((d,i)=>`
+      <div class="month-row">
+        <div class="month-lbl">${i+1}월</div>
+        <div class="month-bar"><div class="month-bar-fill" style="width:${100*d[key]/maxV}%;background:${color}"></div></div>
+        <div class="month-cnt">${d[key]}</div>
+      </div>`).join('')}
+    </div></div>`;
+
+  let h = barCard('📋 월별 총 고장건수','total','var(--accent)',maxTotal);
+  h    += barCard('🚫 월별 자동/수동차단','auto',autoColor,maxAuto);
+  h    += barCard('🟦 월별 보조블럭 차단','aux',auxColor,maxAux);
+  if(statFleet==='KTX'){
+    const maxR=Math.max(...mData.map(d=>d.rabbit),1);
+    h += barCard('🐇 월별 토끼뜀','rabbit',rabbitColor,maxR);
+  }
+  return h;
+}
+
+/* ── 주간 전용 ── */
+function buildWeeklyCards(){
+  const nWeeks = parseInt(document.getElementById('weekRangeN')?.value||4);
+  const today  = new Date();
+  const autoColor=colorOf('auto'), auxColor=colorOf('auxblock');
+  let h='';
+
+  // 주별 집계
+  const weeks=[];
+  for(let w=nWeeks-1; w>=0; w--){
+    const end   = new Date(today); end.setDate(today.getDate() - w*7);
+    const start = new Date(end);   start.setDate(end.getDate() - 6);
+    const s = start.toISOString().split('T')[0];
+    const e = end.toISOString().split('T')[0];
+    const evts = statEvts(s, e);
+    const label = `${s.slice(5).replace('-','/')}~${e.slice(5).replace('-','/')}`;
+    weeks.push({label, evts, s, e});
+  }
+  const maxTotal = Math.max(...weeks.map(w=>w.evts.length), 1);
+
+  // 요약 바 차트 카드
+  h += `<div class="stat-card" style="grid-column:1/-1"><h3>📋 주간 고장건수 추이 (최근 ${nWeeks}주)</h3>
+    <div class="month-bar-wrap">${weeks.map(w=>`
+      <div class="month-row">
+        <div class="month-lbl" style="min-width:80px;font-size:10px;">${w.label}</div>
+        <div class="month-bar"><div class="month-bar-fill" style="width:${100*w.evts.length/maxTotal}%;background:var(--accent)"></div></div>
+        <div class="month-cnt">${w.evts.length}</div>
+      </div>`).join('')}
+    </div></div>`;
+
+  // 주차별 상세 카드
+  weeks.forEach(w=>{
+    const evts=w.evts;
+    const autoN=evts.filter(isAutoCut).length;
+    const auxN =evts.filter(isAuxBlock).length;
+    const warnN=evts.filter(e=>e.status==='warning').length;
+    const rabbitN=evts.filter(e=>e.status==='rabbit'||e.content.includes('토끼뜀')).length;
+    h+=`<div class="stat-card"><h3>📅 ${w.label}</h3>
+      <div class="stat-bar-row"><div class="lbl">총 고장</div><div class="cnt" style="font-size:15px;font-weight:800">${evts.length}</div></div>
+      ${statFleet==='KTX'?`<div class="stat-bar-row"><div class="lbl">토끼뜀</div><div class="cnt" style="color:${colorOf('rabbit')};font-weight:700">${rabbitN}</div></div>`:''}
+      <div class="stat-bar-row"><div class="lbl">자동/수동차단</div><div class="cnt" style="color:${autoColor};font-weight:700">${autoN}</div></div>
+      <div class="stat-bar-row"><div class="lbl">보조블럭 차단</div><div class="cnt" style="color:${auxColor};font-weight:700">${auxN}</div></div>
+      <div class="stat-bar-row"><div class="lbl">중점관리대상</div><div class="cnt" style="color:${colorOf('warning')};font-weight:700">${warnN}</div></div>
+    </div>`;
+  });
+  return h;
+}
+
+function renderStat(){
+  const y = new Date().getFullYear();
+  const autoColor=colorOf('auto'), auxColor=colorOf('auxblock');
+  let h='', labelTxt='';
+
+  if(statTab==='year'){
+    const evts = statEvts(`${y}-01-01`,`${y}-12-31`);
+    labelTxt = `집계 기간: ${y}년 1월 1일 ~ 12월 31일 (${statFleet} 고장 총 ${evts.length}건)`;
+    h += buildSummaryCard(evts, `📋 ${y}년 연간 요약 (주기검수 제외)`);
+    h += buildRepeatCard(evts);
+    h += buildTopCard(evts, isAutoCut,  autoColor, '🚫 자동/수동차단 TOP (PC구분)');
+    h += buildTopCard(evts, isAuxBlock, auxColor,  '🟦 보조블럭 차단 TOP (PC구분)');
+    if(statFleet==='KTX') h += buildRabbitCard(evts);
+
+  } else if(statTab==='month'){
+    labelTxt = `${y}년 월별 통계 (${statFleet})`;
+    h = buildMonthlyCards(y);
+
+  } else if(statTab==='week'){
+    const nWeeks = parseInt(document.getElementById('weekRangeN')?.value||4);
+    labelTxt = `최근 ${nWeeks}주 주간 통계 (${statFleet})`;
+    h = buildWeeklyCards();
+  }
+
+  document.getElementById('statYearLabel').textContent = labelTxt;
+  document.getElementById('statGrid').innerHTML = h;
+}
+
+function openModal(id){document.getElementById(id).classList.add('show');if(id==='admModal') openAdmTabs();if(id==='statModal'){statFleet=fleetFilter;statTab='year';['year','month','week'].forEach(t=>{const el=document.getElementById('stab-'+t);if(el)el.classList.toggle('active',t==='year');});const wc=document.getElementById('weekRangeCtrl');if(wc)wc.style.display='none';document.getElementById('statKTX').classList.toggle('active',statFleet==='KTX');document.getElementById('statSR').classList.toggle('active',statFleet==='SR');renderStat();}if(id==='opsModal'){opsFleet=fleetFilter;document.getElementById('opsKTX').classList.toggle('active',opsFleet==='KTX');document.getElementById('opsSR').classList.toggle('active',opsFleet==='SR');const otf=document.getElementById('opsTrainFilter');if(otf)otf.value='';renderOps();}}
+function closeModal(id){document.getElementById(id).classList.remove('show');}
+function toggleSearch(){const sb=document.getElementById('search-bar');sb.style.display=sb.style.display==='none'?'flex':'none';}
+function clearSearch(){document.getElementById('srchTrain').value='';document.getElementById('srchLoc').value='';document.getElementById('srchContent').value='';document.getElementById('srchStatus').value='';render();}
+function setPeriod(days){const today=new Date();const start=new Date(today);start.setDate(start.getDate()-days+1);document.getElementById('sDate').value=start.toISOString().split('T')[0];document.getElementById('eDate').value=today.toISOString().split('T')[0];document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));document.getElementById('pb'+days).classList.add('active');document.getElementById('heatmap-card').scrollLeft=0;render();}
+function clearPeriodActive(){document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));document.getElementById('heatmap-card').scrollLeft=0;}
+
+function render(){renderLegendBar();renderFilters();renderHeatmap();if(selTrain) renderSummary();}
+async function reloadAndRender(){await loadDB();render();}
+document.addEventListener('DOMContentLoaded',async()=>{await loadDB();initDates();render();});
+let resizeT=null;
+window.addEventListener('resize',()=>{clearTimeout(resizeT);resizeT=setTimeout(()=>{ if(DB) renderHeatmap(); },150);});
+
+function exportOfflineHTML(){
+  // 현재 HTML 소스 텍스트를 가져와서 INITIAL 데이터만 교체 후 다운로드
+  const htmlEl = document.documentElement.cloneNode(true);
+
+  // 저장 시 열려 있는 모달을 모두 닫힌 상태로 만들기
+  htmlEl.querySelectorAll('.modal').forEach(m => m.classList.remove('show'));
+
+  // 배포용 HTML은 항상 "비관리자(모니터링 전용)" 상태로 시작하도록 강제 초기화
+  // (현재 화면이 관리자 모드로 로그인되어 있어도, 내보내는 파일은 로그아웃 상태로 저장)
+  htmlEl.querySelectorAll('.admin-shown').forEach(el=>{
+    el.classList.remove('admin-shown');
+    el.classList.add('admin-only');
+    el.style.removeProperty('display');
+  });
+  const fabEl = htmlEl.querySelector('#fab');
+  if(fabEl) fabEl.style.display='none';
+  const admBtnEl = htmlEl.querySelector('.admin-btn');
+  if(admBtnEl) admBtnEl.classList.remove('on');
+
+  // 현재 DB 스냅샷을 INITIAL로 직렬화
+  const snapshot = {
+    legend:    JSON.parse(JSON.stringify(DB.legend)),
+    trains:    JSON.parse(JSON.stringify(DB.trains)),
+    locations: JSON.parse(JSON.stringify(DB.locations)),
+    events:    JSON.parse(JSON.stringify(DB.events))
+  };
+
+  // script 태그 내 INITIAL 객체를 현재 DB로 교체
+  const scripts = htmlEl.querySelectorAll('script');
+  scripts.forEach(s => {
+    if(s.textContent.includes('const INITIAL=') || s.textContent.includes('const INITIAL =')){
+      s.textContent = s.textContent.replace(
+        /const INITIAL\s*=\s*\{[\s\S]*?\n\};/,
+        'const INITIAL=' + JSON.stringify(snapshot, null, 2) + ';'
+      );
+    }
+  });
+
+  const today = new Date().toISOString().split('T')[0];
+  const src = '<!DOCTYPE html>\n' + htmlEl.outerHTML;
+  const bom = '\uFEFF';
+  const blob = new Blob([bom + src], {type:'text/html;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `ktx_monitor_${today}.html`;
+  a.click();
+  alert(`HTML 파일이 생성되었습니다.\n파일명: ktx_monitor_${today}.html\n내장 데이터: ${DB.events.length}건`);
+}
+</script>
+</body>
+</html>
