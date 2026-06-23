@@ -772,7 +772,14 @@ function renderHeatmap(){
       else   bh += `<td onclick="clickCell('${train}','${d}')" ${tdStyle(cellW)}><span class="cell-dot empty" title="데이터없음"></span></td>`;
     });
     bh += '</tr>';
-    if(isOpen) bh += buildTimelineRows(train, dates, cellW, TW, SW);
+    if(isOpen){
+      const tlRows = buildTimelineRows(train, dates, cellW, TW, SW);
+      if(tlRows){
+        bh += tlRows;
+      } else {
+        bh += `<tr class="tl-detail-row"><td colspan="2" ${tdStyle(TW+SW)} style="color:var(--txt3);font-size:11px;">선택 기간 내 이력 없음</td><td colspan="${dates.length}" style="color:var(--txt3);font-size:11px;text-align:left;padding-left:8px;">선택한 기간(${dates.length}일) 동안 발생한 이력이 없습니다.</td></tr>`;
+      }
+    }
   });
   document.querySelector('#heatmap-table tbody').innerHTML = bh;
 
@@ -785,7 +792,8 @@ function renderHeatmap(){
 
 function buildTimelineRows(train, dates, cellW, TW, SW){
   TW = TW || 80; SW = SW || 80; cellW = cellW || 36;
-  const allEvts=DB.events.filter(e=>e.train===train);
+  const dateSet = new Set(dates);
+  const allEvts=DB.events.filter(e=>e.train===train && dateSet.has(e.date));
   if(!allEvts.length) return '';
   const completeEvts = allEvts.filter(e=>e.status==='complete');
   const failEvts = allEvts.filter(e=>e.status!=='complete');
