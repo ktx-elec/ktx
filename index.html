@@ -626,9 +626,11 @@ function fmtShort(d){return d.slice(5).replace('-','.');}
 
 // 편성/위치 표시 순서: PC1MB1~3 → PC2MB1~3 → PC1 보조블럭 → PC2 보조블럭 → 신호장치 → 기타장치 → 그 외
 const LOC_ORDER = ['PC1MB1','PC1MB2','PC1MB3','PC2MB1','PC2MB2','PC2MB3','PC1보조블럭','PC2보조블럭','신호장치','기타장치'];
+const LOC_ORDER_NORM = LOC_ORDER.map(s=>s.toUpperCase());
 function locSortIndex(loc){
-  const norm = String(loc||'').replace(/\s+/g,''); // 공백 차이(예: 'PC1 보조블럭' vs 'PC1보조블럭') 무시하고 매칭
-  const idx = LOC_ORDER.indexOf(norm);
+  // 공백 차이('PC1 보조블럭' vs 'PC1보조블럭')와 대소문자 차이(pc1mb1 vs PC1MB1) 모두 무시하고 매칭
+  const norm = String(loc||'').replace(/\s+/g,'').toUpperCase();
+  const idx = LOC_ORDER_NORM.indexOf(norm);
   return idx === -1 ? LOC_ORDER.length : idx; // 목록에 없는 위치는 맨 뒤로
 }
 function sortLocs(locs){
