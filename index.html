@@ -580,7 +580,7 @@ async function publishToGithub(){
       method:'PUT',
       headers: {...ghHeaders(), 'Content-Type':'application/json'},
       body: JSON.stringify({
-        message: `데이터 업데이트 (${new Date().toISOString().slice(0,19).replace('T',' ')}) — 이벤트 ${DB.events.length}건`,
+        message: `데이터 업데이트 (${(()=>{const k=new Date(Date.now()+9*60*60*1000);return k.toISOString().slice(0,19).replace('T',' ')+' KST';})()}) — 이벤트 ${DB.events.length}건`,
         content: b64,
         branch: ghConfig.branch,
         ...(sha ? {sha} : {})
@@ -610,26 +610,52 @@ function excelDateToStr(d){
   const y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,'0'), day=String(d.getUTCDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
-function todayStr(){return new Date().toISOString().split('T')[0];}
-function daysAgoStr(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().split('T')[0];}
+// 모든 '오늘/날짜 문자열' 계산은 한국시간(KST, UTC+9) 기준으로 통일한다.
+// new Date().toISOString()을 직접 쓰면 브라우저 로컬 타임존을 UTC로 환산하면서
+// 자정~오전9시 사이에 날짜(심하면 연도까지)가 하루 밀리는 문제가 발생하므로 사용하지 않는다.
+function toKSTDateStr(d){
+  // d를 KST 기준 'YYYY-MM-DD'로 변환. d가 없으면 현재 시각 기준.
+  const kst = new Date((d ? d.getTime() : Date.now()) + 9*60*60*1000);
+  const y = kst.getUTCFullYear(), m = String(kst.getUTCMonth()+1).padStart(2,'0'), day = String(kst.getUTCDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function todayStr(){return toKSTDateStr();}
+function daysAgoStr(n){const d=new Date(Date.now()-n*86400000);return toKSTDateStr(d);}
 function fmtDate(d){const dt=new Date(d+'T00:00:00');const w=['일','월','화','수','목','금','토'][dt.getDay()];return `${String(dt.getFullYear()).slice(2)}.${String(dt.getMonth()+1).padStart(2,'0')}.${String(dt.getDate()).padStart(2,'0')} (${w})`;}
 function fmtShort(d){return d.slice(5).replace('-','.');}
+
+// 편성/위치 표시 순서: PC1MB1~3 → PC2MB1~3 → PC1 보조블럭 → PC2 보조블럭 → 신호장치 → 기타장치 → 그 외
+const LOC_ORDER = ['PC1MB1','PC1MB2','PC1MB3','PC2MB1','PC2MB2','PC2MB3','PC1보조블럭','PC2보조블럭','신호장치','기타장치'];
+function locSortIndex(loc){
+  const norm = String(loc||'').replace(/\s+/g,''); // 공백 차이(예: 'PC1 보조블럭' vs 'PC1보조블럭') 무시하고 매칭
+  const idx = LOC_ORDER.indexOf(norm);
+  return idx === -1 ? LOC_ORDER.length : idx; // 목록에 없는 위치는 맨 뒤로
+}
+function sortLocs(locs){
+  return locs.slice().sort((a,b)=>{
+    const ia=locSortIndex(a), ib=locSortIndex(b);
+    if(ia!==ib) return ia-ib;
+    return String(a||'').localeCompare(String(b||''));
+  });
+}
 
 function dateRange(){
   const s=new Date(document.getElementById('sDate').value+'T00:00:00');
   const e=new Date(document.getElementById('eDate').value+'T00:00:00');
   const arr=[];const c=new Date(s);
-  while(c<=e){arr.push(c.toISOString().split('T')[0]);c.setDate(c.getDate()+1);}
+  const fmt=(dt)=>`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  while(c<=e){arr.push(fmt(c));c.setDate(c.getDate()+1);}
   return arr;
 }
 function get14DayRange(){
   const e=new Date(document.getElementById('eDate').value+'T00:00:00');
   const s=new Date(e);s.setDate(s.getDate()-13);
   const arr=[];const c=new Date(s);
-  while(c<=e){arr.push(c.toISOString().split('T')[0]);c.setDate(c.getDate()+1);}
+  const fmt=(dt)=>`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  while(c<=e){arr.push(fmt(c));c.setDate(c.getDate()+1);}
   return arr;
 }
-function getYearRange(){const y=new Date().getFullYear();return {start:`${y}-01-01`, end:`${y}-12-31`};}
+function getYearRange(){const y=Number(toKSTDateStr().slice(0,4));return {start:`${y}-01-01`, end:`${y}-12-31`};}
 function legOf(key){return DB.legend.find(l=>l.key===key)||{name:key,color:'#475569'};}
 function colorOf(k){return legOf(k).color;}
 function nameOf(k){return legOf(k).name;}
@@ -809,7 +835,7 @@ function buildTimelineRows(train, dates, cellW, TW, SW){
   if(!allEvts.length) return '';
   const completeEvts = allEvts.filter(e=>e.status==='complete');
   const failEvts = allEvts.filter(e=>e.status!=='complete');
-  const locs = [...new Set(failEvts.map(e=>e.loc))];
+  const locs = sortLocs([...new Set(failEvts.map(e=>e.loc))]);
   const twS = `style="width:${TW}px;min-width:${TW}px;max-width:${TW}px;"`;
   const swS = `style="width:${SW}px;min-width:${SW}px;max-width:${SW}px;"`;
   const cwS = `style="width:${cellW}px;min-width:${cellW}px;max-width:${cellW}px;"`;
@@ -827,8 +853,9 @@ function buildTimelineRows(train, dates, cellW, TW, SW){
           
           const isJubak = (e.route || "").includes("주박");
           const isKiji = (e.route || "").includes("기지");
+          const isMonitoring = (e.route || "").includes("모니터링") || nameOf(e.status).includes("모니터링");
           const isActionDone = (e.route || "").includes("조치완료") || nameOf(e.status).includes("조치완료");
-          const subStyle = isActionDone ? "color:#39ff14;font-weight:bold;" : isJubak ? "color:#FF0000;font-weight:bold;" : isKiji ? "color:#FFA500;font-weight:bold;" : "";
+          const subStyle = isActionDone ? "color:#39ff14;font-weight:bold;" : isMonitoring ? "color:#FFFF00;font-weight:bold;" : isJubak ? "color:#FF0000;font-weight:bold;" : isKiji ? "color:#FFA500;font-weight:bold;" : "";
           const ctStyle = (e.status === "complete") ? "color:#CC00FF;font-weight:bold;" : "";
 
           cellHtml += `<div class="tl-evt-block" onclick="event.stopPropagation(); showEvtDetail('${e.id}')" style="background:${bg}; border-left: 3px solid ${colorOf(e.status)};">
@@ -852,9 +879,12 @@ function buildTimelineRows(train, dates, cellW, TW, SW){
         let cellHtml = '';
         evts.forEach(me => {
           const bg=mc+'28';
-          const isJubak = me.content.includes('주박') || me.action.includes('주박') || me.loc.includes('주박');
-          const isKiji  = me.content.includes('기지') || me.action.includes('기지') || me.loc.includes('기지');
-          const subStyle = isJubak ? 'color:#eab308;font-weight:700;' : isKiji ? 'color:#22c55e;font-weight:700;' : '';
+          const text = (me.content||'') + (me.action||'') + (me.loc||'') + (me.route||'');
+          const isActionDone = text.includes('조치완료');
+          const isMonitoring = text.includes('모니터링');
+          const isJubak = text.includes('주박');
+          const isKiji  = text.includes('기지');
+          const subStyle = isActionDone ? 'color:#39ff14;font-weight:700;' : isMonitoring ? 'color:#FFFF00;font-weight:700;' : isJubak ? 'color:#eab308;font-weight:700;' : isKiji ? 'color:#22c55e;font-weight:700;' : '';
           cellHtml += `<div class="tl-evt-block" onclick="event.stopPropagation(); showEvtDetail('${me.id}')" style="background:${bg}; border-left: 3px solid ${mc};">
             <span class="ct-txt" style="color:${mc};">${me.content}</span>
             <span class="sub-txt" style="${subStyle}">${firstKkokji(me.action)}</span>
@@ -1295,8 +1325,11 @@ function renderOps(){
   body.innerHTML = evts.map(e => {
     const routeTxt = e.route||'';
     const isActionDone = isActionDoneEvt(e);
+    const isMonitoringEvt = (e.route||'').includes('모니터링') || (nameOf(e.status)||'').includes('모니터링');
     const statusCell = isActionDone
-      ? `<span class="ops-badge" style="background:#52525b">조치완료</span>`
+      ? `<span class="ops-badge" style="background:#22c55e">조치완료</span>`
+      : isMonitoringEvt
+      ? `<span class="ops-badge" style="background:#FFFF00;color:#000;">모니터링</span>`
       : `<span class="ops-badge" style="background:${colorOf(e.status)}">${nameOf(e.status)}</span>`;
     const noteTxt = e.note||'';
     const isWarnNote = noteTxt.includes('중점관리');
@@ -1431,17 +1464,18 @@ function buildMonthlyCards(y){
 /* ── 주간 전용 ── */
 function buildWeeklyCards(){
   const nWeeks = parseInt(document.getElementById('weekRangeN')?.value||4);
-  const today  = new Date();
+  const today  = new Date(toKSTDateStr()+'T00:00:00');
   const autoColor=colorOf('auto'), auxColor=colorOf('auxblock');
   let h='';
 
   // 주별 집계
   const weeks=[];
+  const fmt=(dt)=>`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   for(let w=nWeeks-1; w>=0; w--){
     const end   = new Date(today); end.setDate(today.getDate() - w*7);
     const start = new Date(end);   start.setDate(end.getDate() - 6);
-    const s = start.toISOString().split('T')[0];
-    const e = end.toISOString().split('T')[0];
+    const s = fmt(start);
+    const e = fmt(end);
     const evts = statEvts(s, e);
     const label = `${s.slice(5).replace('-','/')}~${e.slice(5).replace('-','/')}`;
     weeks.push({label, evts, s, e});
@@ -1508,7 +1542,7 @@ function openModal(id){document.getElementById(id).classList.add('show');if(id==
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 function toggleSearch(){const sb=document.getElementById('search-bar');sb.style.display=sb.style.display==='none'?'flex':'none';}
 function clearSearch(){document.getElementById('srchTrain').value='';document.getElementById('srchLoc').value='';document.getElementById('srchContent').value='';document.getElementById('srchStatus').value='';render();}
-function setPeriod(days){const today=new Date();const start=new Date(today);start.setDate(start.getDate()-days+1);document.getElementById('sDate').value=start.toISOString().split('T')[0];document.getElementById('eDate').value=today.toISOString().split('T')[0];document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));document.getElementById('pb'+days).classList.add('active');document.getElementById('heatmap-card').scrollLeft=0;render();requestAnimationFrame(()=>{const card=document.getElementById('heatmap-card');card.scrollLeft=card.scrollWidth;});}
+function setPeriod(days){const today=new Date(toKSTDateStr()+'T00:00:00');const start=new Date(today);start.setDate(start.getDate()-days+1);const fmt=(dt)=>`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;document.getElementById('sDate').value=fmt(start);document.getElementById('eDate').value=fmt(today);document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));document.getElementById('pb'+days).classList.add('active');document.getElementById('heatmap-card').scrollLeft=0;render();requestAnimationFrame(()=>{const card=document.getElementById('heatmap-card');card.scrollLeft=card.scrollWidth;});}
 function clearPeriodActive(){document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));document.getElementById('heatmap-card').scrollLeft=0;}
 
 function render(){renderLegendBar();renderFilters();renderHeatmap();if(selTrain) renderSummary();}
@@ -1555,7 +1589,7 @@ function exportOfflineHTML(){
     }
   });
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = toKSTDateStr();
   const src = '<!DOCTYPE html>\n' + htmlEl.outerHTML;
   const bom = '\uFEFF';
   const blob = new Blob([bom + src], {type:'text/html;charset=utf-8'});
