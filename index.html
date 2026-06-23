@@ -435,7 +435,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Malgun Gothic','Segoe UI
 <div class="ops-table-wrap" id="opsTableWrap">
   <table class="ops-table">
     <thead><tr>
-      <th>날짜</th><th>편성</th><th>위치</th><th>현상</th><th>최종행로</th><th>조치내역</th><th>비고</th><th>주기검수</th><th>상태</th>
+      <th>날짜</th><th>편성</th><th>위치</th><th>현상</th><th>상태(행로)</th><th>조치내역</th><th>비고</th><th>주기검수</th><th>상태</th>
     </tr></thead>
     <tbody id="opsTableBody"></tbody>
   </table>
@@ -970,7 +970,7 @@ function showEvtDetail(id){
   h+=`<div class="det-row"><div class="det-k">발생일</div><div class="det-v">${fmtDate(e.date)}</div></div>`;
   h+=`<div class="det-row"><div class="det-k">편성</div><div class="det-v">${e.train}</div></div>`;
   h+=`<div class="det-row"><div class="det-k">발생위치</div><div class="det-v">${e.loc}</div></div>`;
-  if(e.route) h+=`<div class="det-row"><div class="det-k">최종행로</div><div class="det-v">${formatActionList(e.route)}</div></div>`;
+  if(e.route) h+=`<div class="det-row"><div class="det-k">상태(행로)</div><div class="det-v">${formatActionList(e.route)}</div></div>`;
   h+=`<div class="det-row"><div class="det-k">조치내역</div><div class="det-v">${formatActionList(e.action)}</div></div>`;
   if(e.checks) h+=`<div class="det-row"><div class="det-k">주기검수</div><div class="det-v">${formatList(e.checks)}</div></div>`;
   if(e.note) h+=`<div class="det-row"><div class="det-k">비고</div><div class="det-v">${e.note}</div></div>`;
@@ -1194,6 +1194,12 @@ function handleCSVFile(f){
           for(let i=0;i<headers.length;i++){ if(headers[i]===key) idx = i; }
           return idx > -1 ? String(row[idx] || "").trim() : "";
         };
+        // 헤더명이 바뀐 경우(예: '최종행로' -> '상태(행로)')에도 호환되도록,
+        // 후보 헤더명들을 순서대로 시도해 처음 매칭되는 컬럼 값을 가져온다.
+        const getValAny = (...keys) => {
+          for(const key of keys){ const v = getVal(key); if(v) return v; }
+          return "";
+        };
         let rawDate = row[headers.indexOf('날짜')];
         let dateStr = "";
         if(rawDate instanceof Date) {
@@ -1207,7 +1213,7 @@ function handleCSVFile(f){
         const checksRaw = getVal('주기검수');
         const trainRaw = normalizeTrainNo(getVal('차호'));
         const locRaw = getValLast('위치');
-        const routeRaw = getVal('최종행로');
+        const routeRaw = getValAny('상태(행로)', '최종행로');
         const actionRaw = getVal('조치내역');
         const noteRaw = getVal('비고');
         const statusRaw = getVal('상태');
