@@ -479,12 +479,12 @@ function normalizeTrainNo(raw){
 
 const INITIAL={
   legend:[
+    {key:'warning', name:'중점관리대상',   color:'#eab308'},
     {key:'rabbit',  name:'토끼뜀',   color:'#a855f7'}, // 보라색
     {key:'auto',    name:'자동차단', color:'#ef4444'}, // 붉은색
     {key:'auxblock',name:'보조블럭 차단', color:'#00ffff'}, // 형광 하늘색
-    {key:'warning', name:'중점관리대상',   color:'#eab308'},
-    {key:'normal',  name:'발생',     color:'#22c55e'},
     {key:'complete',name:'주기검수', color:'#3b82f6'}, // 파란색
+    {key:'normal',  name:'발생',     color:'#22c55e'},
     {key:'nodata',  name:'데이터없음',color:'#475569'}
   ],
   trains:[
@@ -713,7 +713,7 @@ function getStatusForCell(train,date){
   const evts=DB.events.filter(e=>e.train===train&&e.date===date);
   if(!evts.length) return null;
   if(srchS&&!evts.find(e=>e.status===srchS)) return null;
-  const priority=['rabbit','auto','warning','normal','complete','nodata'];
+  const priority=['warning','rabbit','auto','complete','normal','nodata'];
   for(const p of priority){if(evts.find(e=>e.status===p)) return p;}
   return evts[0].status;
 }
@@ -736,7 +736,7 @@ function get14DaySummary(train){
   const last14=get14DayRange();
   const evts=DB.events.filter(e=>e.train===train&&last14.includes(e.date));
   if(!evts.length) return 'normal';
-  const priority=['rabbit','auto','warning','normal','complete'];
+  const priority=['warning','rabbit','auto','complete','normal'];
   for(const p of priority){if(evts.find(e=>e.status===p)) return p;}
   return 'normal';
 }
@@ -1223,8 +1223,12 @@ function handleCSVFile(f){
         else if(contentRaw.includes('보조블럭')) statusKey = 'auxblock';
         else if(checksRaw && checksRaw !== '—' && checksRaw !== '-') statusKey = 'complete';
         else {
-          const stMap={'토끼뜀':'rabbit','자동차단':'auto','요주의':'warning','중점관리':'warning','중점관리대상':'warning','정상':'normal','조치완료':'normal','주기검수':'complete'};
-          statusKey = stMap[statusRaw] || 'normal';
+          // '중점관리대상/중점관리/중점' 등 일부만 써도 모두 warning(중점관리대상, 겨자색)으로 인식
+          if(statusRaw.includes('중점') || statusRaw.includes('요주의')) statusKey = 'warning';
+          else {
+            const stMap={'토끼뜀':'rabbit','자동차단':'auto','정상':'normal','조치완료':'normal','주기검수':'complete'};
+            statusKey = stMap[statusRaw] || 'normal';
+          }
         }
         if(!trainRaw || !dateStr) return;
         opsRows.push({
