@@ -621,8 +621,10 @@ function excelSerialToStr(serial){
   return `${y}-${m}-${day}`;
 }
 // 하위호환용 — Date 객체가 넘어올 경우 대비
+// SheetJS(cellDates:true)가 만드는 Date는 UTC 자정 기준이므로
+// getUTCFullYear/Month/Date를 사용해야 로컬 타임존 오프셋에 의한 날짜 밀림을 막는다.
 function excelDateToStr(d){
-  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  const y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,'0'), day=String(d.getUTCDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
 // 모든 '오늘/날짜 문자열' 계산은 한국시간(KST, UTC+9) 기준으로 통일한다.
@@ -676,6 +678,12 @@ function getYearRange(){const y=Number(toKSTDateStr().slice(0,4));return {start:
 function legOf(key){return DB.legend.find(l=>l.key===key)||{name:key,color:'#475569'};}
 function colorOf(k){return legOf(k).color;}
 function nameOf(k){return legOf(k).name;}
+
+// 숫자만으로 된 편성번호를 "KTX##" 형식으로 변환
+function fmtTrain(train){
+  const s = String(train||'').trim();
+  return /^\d+$/.test(s) ? 'KTX' + s : s;
+}
 
 function initDates(){
   const today=todayStr();
@@ -815,7 +823,7 @@ function renderHeatmap(){
     const arrow = isOpen ? '▲' : '▼';
     const expandedClass = isOpen ? 'expanded' : '';
     bh += `<tr class="hm-row ${sel} ${expandedClass}" data-train="${train}">`;
-    bh += `<td onclick="toggleAccordion('${train}')" ${tdStyle(TW)}>${train}${hasEvts ? `&nbsp;<span style="font-size:9px;color:var(--txt3)">${arrow}</span>` : ''}</td>`;
+    bh += `<td onclick="toggleAccordion('${train}')" ${tdStyle(TW)}>${fmtTrain(train)}${hasEvts ? `&nbsp;<span style="font-size:9px;color:var(--txt3)">${arrow}</span>` : ''}</td>`;
     bh += `<td ${tdStyle(SW)}><span class="badge-sm" style="background:${sc};">${nameOf(summary)}</span></td>`;
     dates.forEach(d => {
       const st = getStatusForCell(train, d);
@@ -956,7 +964,7 @@ function renderSummary(forcedEvts){
   let evts = forcedEvts || DB.events.filter(e=>e.train===selTrain);
   if (forcedEvts && forcedEvts.length > 0) selTrain = forcedEvts[0].train;
   const summary=get14DaySummary(selTrain);
-  document.getElementById('rpName').textContent=selTrain;
+  document.getElementById('rpName').textContent=fmtTrain(selTrain);
   const b=document.getElementById('rpBadge');b.textContent=nameOf(summary);b.style.background=colorOf(summary);
   document.getElementById('rpEvtN').textContent=evts.length;
   document.getElementById('rpFgiN').textContent=evts.filter(e=>e.status==='complete').length;
@@ -983,7 +991,7 @@ function showEvtDetail(id){
   }
   let h=`<div class="det-title"><span class="badge-sm" style="background:${colorOf(e.status)};margin-right:6px">${nameOf(e.status)}</span>${e.loc} — ${e.content}${isAdmin?`<button class="btn btn-ghost" style="float:right;padding:3px 8px;font-size:11px" onclick="editEvt('${e.id}')">✏️ 수정</button>`:''}</div>`;
   h+=`<div class="det-row"><div class="det-k">발생일</div><div class="det-v">${fmtDate(e.date)}</div></div>`;
-  h+=`<div class="det-row"><div class="det-k">편성</div><div class="det-v">${e.train}</div></div>`;
+  h+=`<div class="det-row"><div class="det-k">편성</div><div class="det-v">${fmtTrain(e.train)}</div></div>`;
   h+=`<div class="det-row"><div class="det-k">발생위치</div><div class="det-v">${e.loc}</div></div>`;
   if(e.route) h+=`<div class="det-row"><div class="det-k">상태(행로)</div><div class="det-v">${formatActionList(e.route)}</div></div>`;
   h+=`<div class="det-row"><div class="det-k">조치내역</div><div class="det-v">${formatActionList(e.action)}</div></div>`;
@@ -1281,7 +1289,7 @@ function handleCSVFile(f){
 
     let ph = `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:10px;"><thead><tr><th>날짜</th><th>차호</th><th>위치</th><th>현상</th></tr></thead><tbody>`;
     csvRows.slice(0,5).forEach(r => {
-      ph += `<tr><td>${r.date}</td><td>${r.train}</td><td>${r.loc}</td><td>${r.content.substring(0,15)}...</td></tr>`;
+      ph += `<tr><td>${r.date}</td><td>${fmtTrain(r.train)}</td><td>${r.loc}</td><td>${r.content.substring(0,15)}...</td></tr>`;
     });
     ph += `</tbody></table><p style="margin-top:5px;font-size:12px;">총 ${csvRows.length}건 분석됨 (차량운행현황 ${opsRows.length}건 + 주기검수 ${checkRows.length}건)</p>`;
     document.getElementById('csvPreview').innerHTML = `<div style="margin-bottom:6px;font-size:12px;color:var(--txt2);font-weight:bold;">미리보기 (최대 5행)</div>` + ph;
@@ -1368,7 +1376,7 @@ function renderOps(){
     return `
     <tr onclick="showEvtDetail('${e.id}')" style="cursor:pointer;">
       <td class="ops-date">${fmtDate(e.date)}</td>
-      <td class="ops-train">${e.train}</td>
+      <td class="ops-train">${fmtTrain(e.train)}</td>
       <td class="ops-left">${e.loc||''}</td>
       <td class="ops-left">${formatActionList(e.content||'')}</td>
       <td>${formatActionList(routeTxt)}</td>
@@ -1446,7 +1454,7 @@ function buildTopCard(evts, filterFn, color, title){
 function buildRabbitCard(evts){
   const list=evts.filter(e=>e.status==='rabbit'||e.content.includes('토끼뜀')).sort((a,b)=>b.date.localeCompare(a.date));
   return `<div class="stat-card"><h3>🐇 토끼뜀 현황 목록</h3>
-    ${list.length?`<div class="rabbit-list"><div style="display:flex;gap:6px;font-size:10px;color:var(--txt3);padding:2px 0;border-bottom:1px solid var(--border);margin-bottom:4px;"><span style="min-width:60px;font-weight:700;">연월일</span><span style="min-width:50px;font-weight:700;">편성</span><span style="flex:1;font-weight:700;">위치</span></div>${list.map(e=>`<div class="rabbit-item"><span style="min-width:60px;color:var(--txt2)">${e.date.slice(2).replace(/-/g,'.')}</span><span class="ri-train" style="min-width:50px">${e.train}</span><span class="ri-loc">${e.loc}</span></div>`).join('')}</div>`:'<div style="color:var(--txt3);font-size:11px;padding:8px 0;">해당 없음</div>'}
+    ${list.length?`<div class="rabbit-list"><div style="display:flex;gap:6px;font-size:10px;color:var(--txt3);padding:2px 0;border-bottom:1px solid var(--border);margin-bottom:4px;"><span style="min-width:60px;font-weight:700;">연월일</span><span style="min-width:50px;font-weight:700;">편성</span><span style="flex:1;font-weight:700;">위치</span></div>${list.map(e=>`<div class="rabbit-item"><span style="min-width:60px;color:var(--txt2)">${e.date.slice(2).replace(/-/g,'.')}</span><span class="ri-train" style="min-width:50px">${fmtTrain(e.train)}</span><span class="ri-loc">${e.loc}</span></div>`).join('')}</div>`:'<div style="color:var(--txt3);font-size:11px;padding:8px 0;">해당 없음</div>'}
   </div>`;
 }
 
