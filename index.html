@@ -607,7 +607,9 @@ function uid(){return 'e'+Date.now()+Math.random().toString(36).slice(2,6);}
 // Date#toISOString()은 로컬 타임존을 UTC로 변환하면서 날짜가 하루 밀리는 문제가 있어
 // SheetJS가 채워주는 UTC 게터(getUTCFullYear 등)를 직접 사용해 타임존 영향을 없앤다.
 function excelDateToStr(d){
-  const y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,'0'), day=String(d.getUTCDate()).padStart(2,'0');
+  // cellDates:true 옵션은 엑셀 날짜를 로컬 타임존 자정(KST 00:00)으로 Date 생성하므로
+  // getUTC* 대신 로컬 기준 get* 을 사용해야 날짜가 하루 당겨지지 않는다.
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
 // 모든 '오늘/날짜 문자열' 계산은 한국시간(KST, UTC+9) 기준으로 통일한다.
