@@ -1188,6 +1188,7 @@ function handleCSVFile(f){
       }
       if(headerIdx === -1) return; // 이 시트는 인식 불가, 건너뜀
       const headers = allRows[headerIdx];
+      console.log(`[시트: ${sheetName}] 인식된 헤더:`, headers);
       const dataRows = allRows.slice(headerIdx + 1);
 
       const isCheckSheet = headers.includes('검종') && headers.includes('편성');
@@ -1235,6 +1236,14 @@ function handleCSVFile(f){
           for(const key of keys){ const v = getVal(key); if(v) return v; }
           return "";
         };
+        // '행로'가 포함된 헤더명을 자동 탐색 (예: '최종행로', '상태(행로)', '행로' 등 모두 커버)
+        const getRouteVal = () => {
+          const exact = getValAny('상태(행로)', '최종행로', '행로', '상태행로', '상태 (행로)', '운행상태', '현재상태');
+          if(exact) return exact;
+          // 위에서 못 찾으면 헤더 중 '행로'가 포함된 첫 번째 컬럼을 사용
+          const fuzzyIdx = headers.findIndex(h => String(h||'').includes('행로'));
+          return fuzzyIdx > -1 ? String(row[fuzzyIdx]||'').trim() : '';
+        };
         let rawDate = row[headers.indexOf('날짜')];
         let dateStr = "";
         if(typeof rawDate === 'number') {
@@ -1250,7 +1259,7 @@ function handleCSVFile(f){
         const checksRaw = getVal('주기검수');
         const trainRaw = normalizeTrainNo(getVal('차호'));
         const locRaw = getValLast('위치');
-        const routeRaw = getValAny('상태(행로)', '최종행로');
+        const routeRaw = getRouteVal();
         const actionRaw = getVal('조치내역');
         const noteRaw = getVal('비고');
         const statusRaw = getVal('상태');
