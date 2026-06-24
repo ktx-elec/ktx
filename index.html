@@ -184,6 +184,11 @@ body{background:var(--bg);color:var(--txt);font-family:'Malgun Gothic','Segoe UI
 .fleet-btn-ktx{background:#1e3a8a;}
 .fleet-btn-sr{background:#7f1d1d;}
 
+.ops-sort-btn{padding:5px 13px;border:1px solid var(--border2);border-radius:16px;font-size:11px;font-weight:700;cursor:pointer;background:var(--card);color:var(--txt2);transition:all .15s;}
+.ops-sort-btn:hover{border-color:var(--accent);color:var(--txt);}
+.ops-sort-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.ops-sort-btn.asc::after{content:' ▲';}
+.ops-sort-btn.desc::after{content:' ▼';}
 ::-webkit-scrollbar{width:7px;height:7px;}
 ::-webkit-scrollbar-track{background:#0a1018;}
 ::-webkit-scrollbar-thumb{background:#2a3850;border-radius:4px;}
@@ -425,11 +430,17 @@ body{background:var(--bg);color:var(--txt);font-family:'Malgun Gothic','Segoe UI
 <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal('statModal')">닫기</button></div>
 </div></div>
 <div class="modal" id="opsModal"><div class="modal-box wide"><div class="modal-hd"><h2>🚆 차량운행현황</h2><button class="x-btn" onclick="closeModal('opsModal')">×</button></div>
-<div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;">
+<div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
   <button class="fleet-btn fleet-btn-ktx active" id="opsKTX" onclick="setOpsFleet('KTX')">KTX</button>
   <button class="fleet-btn fleet-btn-sr" id="opsSR" onclick="setOpsFleet('SR')">SR</button>
   <input id="opsTrainFilter" class="hdr-input" style="margin-left:10px;width:130px;" placeholder="편성 검색 (예: KTX01)" oninput="renderOps()">
   <button class="btn btn-ghost" style="padding:5px 10px;font-size:11px;" onclick="document.getElementById('opsTrainFilter').value='';renderOps()">초기화</button>
+  <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+    <span style="font-size:11px;color:var(--txt3);">정렬:</span>
+    <button class="ops-sort-btn desc active" id="opsSortDate" onclick="setOpsSort('date')">최신순</button>
+    <button class="ops-sort-btn" id="opsSortTrain" onclick="setOpsSort('train')">편성순</button>
+    <button class="ops-sort-btn" id="opsSortDateAsc" onclick="setOpsSort('dateAsc')">과거순</button>
+  </div>
 </div>
 <div id="opsCountLabel" style="font-size:12px;color:var(--txt3);margin-bottom:8px;"></div>
 <div class="ops-table-wrap" id="opsTableWrap">
@@ -1337,10 +1348,19 @@ function exportCSV(){
 /* 통계 시스템 (연간/월간/주간) */
 let statFleet = 'KTX';
 let opsFleet = 'KTX';
+let opsSort = { date: 'desc', train: null }; // 최신순 기본, 편성순 null
 function setOpsFleet(fleet){
   opsFleet = fleet;
   document.getElementById('opsKTX').classList.toggle('active', fleet==='KTX');
   document.getElementById('opsSR').classList.toggle('active', fleet==='SR');
+  renderOps();
+}
+function setOpsSort(type){
+  // type: 'date'(최신순), 'train'(편성순), 'dateAsc'(과거순)
+  opsSort = { type };
+  document.getElementById('opsSortDate').className = 'ops-sort-btn' + (type==='date' ? ' active desc' : '');
+  document.getElementById('opsSortTrain').className = 'ops-sort-btn' + (type==='train' ? ' active' : '');
+  document.getElementById('opsSortDateAsc').className = 'ops-sort-btn' + (type==='dateAsc' ? ' active asc' : '');
   renderOps();
 }
 function renderOps(){
@@ -1349,10 +1369,25 @@ function renderOps(){
   const trainFilter = (document.getElementById('opsTrainFilter')?.value||'').trim().toLowerCase();
   let evts = DB.events.filter(e => opsFleet==='SR' ? isSR(e.train) : !isSR(e.train));
   if(trainFilter) evts = evts.filter(e => String(e.train||'').toLowerCase().includes(trainFilter));
-  evts = evts.slice().sort((a,b)=>
-    a.date.localeCompare(b.date) ||
-    String(a.train).localeCompare(String(b.train),undefined,{numeric:true})
-  );
+
+  // 정렬 적용 (최신순 기본)
+  const sortType = opsSort?.type || 'date';
+  if(sortType === 'date'){
+    evts = evts.slice().sort((a,b) =>
+      b.date.localeCompare(a.date) ||
+      String(a.train).localeCompare(String(b.train),undefined,{numeric:true})
+    );
+  } else if(sortType === 'dateAsc'){
+    evts = evts.slice().sort((a,b) =>
+      a.date.localeCompare(b.date) ||
+      String(a.train).localeCompare(String(b.train),undefined,{numeric:true})
+    );
+  } else if(sortType === 'train'){
+    evts = evts.slice().sort((a,b) =>
+      String(a.train).localeCompare(String(b.train),undefined,{numeric:true}) ||
+      b.date.localeCompare(a.date)
+    );
+  }
   document.getElementById('opsCountLabel').textContent = `${opsFleet} 차량운행현황 — 총 ${evts.length}건`;
   const body = document.getElementById('opsTableBody');
   if(!evts.length){
@@ -1575,7 +1610,7 @@ function renderStat(){
   document.getElementById('statGrid').innerHTML = h;
 }
 
-function openModal(id){document.getElementById(id).classList.add('show');if(id==='admModal') openAdmTabs();if(id==='statModal'){statFleet=fleetFilter;statTab='year';['year','month','week'].forEach(t=>{const el=document.getElementById('stab-'+t);if(el)el.classList.toggle('active',t==='year');});const wc=document.getElementById('weekRangeCtrl');if(wc)wc.style.display='none';document.getElementById('statKTX').classList.toggle('active',statFleet==='KTX');document.getElementById('statSR').classList.toggle('active',statFleet==='SR');renderStat();}if(id==='opsModal'){opsFleet=fleetFilter;document.getElementById('opsKTX').classList.toggle('active',opsFleet==='KTX');document.getElementById('opsSR').classList.toggle('active',opsFleet==='SR');const otf=document.getElementById('opsTrainFilter');if(otf)otf.value='';renderOps();}}
+function openModal(id){document.getElementById(id).classList.add('show');if(id==='admModal') openAdmTabs();if(id==='statModal'){statFleet=fleetFilter;statTab='year';['year','month','week'].forEach(t=>{const el=document.getElementById('stab-'+t);if(el)el.classList.toggle('active',t==='year');});const wc=document.getElementById('weekRangeCtrl');if(wc)wc.style.display='none';document.getElementById('statKTX').classList.toggle('active',statFleet==='KTX');document.getElementById('statSR').classList.toggle('active',statFleet==='SR');renderStat();}if(id==='opsModal'){opsFleet=fleetFilter;document.getElementById('opsKTX').classList.toggle('active',opsFleet==='KTX');document.getElementById('opsSR').classList.toggle('active',opsFleet==='SR');const otf=document.getElementById('opsTrainFilter');if(otf)otf.value='';opsSort={type:'date'};document.getElementById('opsSortDate').className='ops-sort-btn active desc';document.getElementById('opsSortTrain').className='ops-sort-btn';document.getElementById('opsSortDateAsc').className='ops-sort-btn';renderOps();}}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 function toggleSearch(){const sb=document.getElementById('search-bar');sb.style.display=sb.style.display==='none'?'flex':'none';}
 function clearSearch(){document.getElementById('srchTrain').value='';document.getElementById('srchLoc').value='';document.getElementById('srchContent').value='';document.getElementById('srchStatus').value='';render();}
