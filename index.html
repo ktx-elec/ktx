@@ -1189,6 +1189,10 @@ function handleCSVFile(f){
       if(headerIdx === -1) return; // 이 시트는 인식 불가, 건너뜀
       const headers = allRows[headerIdx];
       console.log(`[시트: ${sheetName}] 인식된 헤더:`, headers);
+      // 행로 관련 컬럼 디버그
+      const routeColIdx = headers.findIndex(h => String(h||'').includes('행로'));
+      if(routeColIdx > -1) console.log(`[행로 컬럼 발견] 인덱스: ${routeColIdx}, 헤더명: "${headers[routeColIdx]}"`);
+      else console.warn(`[행로 컬럼 없음] 헤더 목록:`, headers.map(h=>String(h||'')).filter(Boolean));
       const dataRows = allRows.slice(headerIdx + 1);
 
       const isCheckSheet = headers.includes('검종') && headers.includes('편성');
@@ -1307,12 +1311,28 @@ function handleCSVFile(f){
 
     if(!csvRows.length){ alert('엑셀 파일에서 인식 가능한 데이터를 찾을 수 없습니다.\n("날짜" 컬럼이 있는 시트가 필요합니다)'); return; }
 
-    let ph = `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:10px;"><thead><tr><th>날짜</th><th>차호</th><th>위치</th><th>현상</th></tr></thead><tbody>`;
+    // 헤더 진단: 시트별 행로 컬럼 인식 여부
+    let diagHtml = '';
+    workbook.SheetNames.forEach(sheetName => {
+      const sheet2 = workbook.Sheets[sheetName];
+      const rows2 = XLSX.utils.sheet_to_json(sheet2, {header:1, defval:''});
+      let hi2 = -1;
+      for(let i=0;i<rows2.length;i++){ if(rows2[i].includes('날짜')){ hi2=i; break; } }
+      if(hi2 === -1) return;
+      const hdrs2 = rows2[hi2].map(h=>String(h||'').trim()).filter(Boolean);
+      const routeHdr = hdrs2.find(h=>h.includes('행로'));
+      const col = routeHdr ? '#22c55e' : '#ef4444';
+      const msg = routeHdr ? `"${routeHdr}" 인식됨 ✅` : `행로 컬럼 없음 ❌ (헤더목록: ${hdrs2.slice(0,8).join(' / ')})`;
+      diagHtml += `<div style="font-size:11px;color:${col};margin-bottom:3px;">[${sheetName}] 상태(행로): ${msg}</div>`;
+    });
+
+    let ph = `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:10px;"><thead><tr><th>날짜</th><th>차호</th><th>위치</th><th>현상</th><th style="color:#22c55e;">상태(행로)</th><th>조치내역</th></tr></thead><tbody>`;
     csvRows.slice(0,5).forEach(r => {
-      ph += `<tr><td>${r.date}</td><td>${fmtTrain(r.train)}</td><td>${r.loc}</td><td>${r.content.substring(0,15)}...</td></tr>`;
+      const rd = r.route ? `<span style="color:#22c55e;font-weight:700;">${r.route.substring(0,12)}</span>` : `<span style="color:#ef4444;">없음</span>`;
+      ph += `<tr><td>${r.date}</td><td>${fmtTrain(r.train)}</td><td>${r.loc}</td><td>${r.content.substring(0,15)}...</td><td>${rd}</td><td>${(r.action||'').substring(0,12)}...</td></tr>`;
     });
     ph += `</tbody></table><p style="margin-top:5px;font-size:12px;">총 ${csvRows.length}건 분석됨 (차량운행현황 ${opsRows.length}건 + 주기검수 ${checkRows.length}건)</p>`;
-    document.getElementById('csvPreview').innerHTML = `<div style="margin-bottom:6px;font-size:12px;color:var(--txt2);font-weight:bold;">미리보기 (최대 5행)</div>` + ph;
+    document.getElementById('csvPreview').innerHTML = `<div style="margin-bottom:6px;font-size:12px;color:var(--txt2);font-weight:bold;">미리보기 (최대 5행)</div>` + diagHtml + ph;
     document.getElementById('csvImportBtn').style.display = '';
     document.getElementById('csvOptRow').style.display = 'flex';
   };
