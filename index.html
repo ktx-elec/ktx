@@ -2,7 +2,25 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=1100">
+<script>
+// 모바일/작은 화면에서도 데스크탑과 동일한 레이아웃(기준 너비 1100px)이
+// 화면 전체에 맞춰 보이도록 viewport의 initial-scale을 동적으로 계산한다.
+// 화면 회전(가로/세로 전환) 시에도 다시 계산하여 항상 전체가 한 화면에 보이게 한다.
+(function(){
+  var LAYOUT_WIDTH = 1100;
+  function setViewport(){
+    var vp = document.querySelector('meta[name="viewport"]');
+    if(!vp) return;
+    var w = window.innerWidth;
+    var scale = Math.min(1, w / LAYOUT_WIDTH);
+    vp.setAttribute('content', 'width=' + LAYOUT_WIDTH + ', initial-scale=' + scale + ', minimum-scale=' + (scale * 0.5) + ', maximum-scale=5');
+  }
+  setViewport();
+  window.addEventListener('resize', setViewport);
+  window.addEventListener('orientationchange', setViewport);
+})();
+</script>
 <title>고속차량 정비이력 모니터링</title>
 <style>
 :root{
