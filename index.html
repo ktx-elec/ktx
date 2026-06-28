@@ -14,7 +14,7 @@
     if(!vp) return;
     var w = window.innerWidth;
     var scale = Math.min(1, w / LAYOUT_WIDTH);
-    vp.setAttribute('content', 'width=' + LAYOUT_WIDTH + ', initial-scale=' + scale + ', minimum-scale=' + (scale * 0.5) + ', maximum-scale=5');
+    vp.setAttribute('content', 'width=' + LAYOUT_WIDTH + ', initial-scale=' + scale + ', minimum-scale=0.25, maximum-scale=5');
   }
   setViewport();
   window.addEventListener('resize', setViewport);
